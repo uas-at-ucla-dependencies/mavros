@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/ADSBVehicle.h>
+#include <mavros_msgs/msg/ADSBVehicle.hpp>
 
 namespace mavros {
 namespace extra_plugins {

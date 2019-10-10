@@ -16,9 +16,9 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/RCIn.h>
-#include <mavros_msgs/RCOut.h>
-#include <mavros_msgs/OverrideRCIn.h>
+#include <mavros_msgs/msg/rc_in.hpp>
+#include <mavros_msgs/msg/rc_out.hpp>
+#include <mavros_msgs/msg/override_rc_in.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -38,9 +38,9 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		rc_in_pub = rc_nh.advertise<mavros_msgs::RCIn>("in", 10);
-		rc_out_pub = rc_nh.advertise<mavros_msgs::RCOut>("out", 10);
-		override_sub = rc_nh.subscribe("override", 10, &RCIOPlugin::override_cb, this);
+		rc_in_pub = rc_nh->create_publisher<mavros_msgs::msg::RCIn>("in", 10);
+		rc_out_pub = rc_nh->create_publisher<mavros_msgs::msg::RCOut>("out", 10);
+		override_sub = rc_nh->create_subscription("override", 10, std::bind(&RCIOPlugin, this, std::placeholders::_1));
 
 		enable_connection_cb();
 	};
@@ -56,15 +56,15 @@ public:
 private:
 	using lock_guard = std::lock_guard<std::mutex>;
 	std::mutex mutex;
-	ros::NodeHandle rc_nh;
+	rclcpp::Node::SharedPtr rc_nh;
 
 	std::vector<uint16_t> raw_rc_in;
 	std::vector<uint16_t> raw_rc_out;
 	std::atomic<bool> has_rc_channels_msg;
 
-	ros::Publisher rc_in_pub;
-	ros::Publisher rc_out_pub;
-	ros::Subscriber override_sub;
+	rclcpp::Publisher<>::SharedPtr rc_in_pub;
+	rclcpp::Publisher<>::SharedPtr rc_out_pub;
+	rclcpp::Subscription<>::SharedPtr override_sub;
 
 	/* -*- rx handlers -*- */
 
@@ -95,7 +95,7 @@ private:
 		raw_rc_in[offset + 7] = port.chan8_raw;
 		// [[[end]]] (checksum: fcb14b1ddfff9ce7dd02f5bd03825cff)
 
-		auto rcin_msg = boost::make_shared<mavros_msgs::RCIn>();
+		auto rcin_msg = std::make_shared<mavros_msgs::msg::RCIn>();
 
 		rcin_msg->header.stamp = m_uas->synchronise_stamp(port.time_boot_ms);
 		rcin_msg->rssi = port.rssi;
@@ -113,7 +113,7 @@ private:
 		has_rc_channels_msg = true;
 
 		if (channels.chancount > MAX_CHANCNT) {
-			ROS_WARN_THROTTLE_NAMED(60, "rc",
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(,60, "rc",
 						"FCU receives %u RC channels, but RC_CHANNELS can store %zu",
 						channels.chancount, MAX_CHANCNT);
 
@@ -150,7 +150,7 @@ private:
 		case  0: break;
 		}
 
-		auto rcin_msg = boost::make_shared<mavros_msgs::RCIn>();
+		auto rcin_msg = std::make_shared<mavros_msgs::msg::RCIn>();
 
 		rcin_msg->header.stamp = m_uas->synchronise_stamp(channels.time_boot_ms);
 		rcin_msg->rssi = channels.rssi;
@@ -205,7 +205,7 @@ private:
 			// [[[end]]] (checksum: 60a386cba6faa126ee7dfe1b22f50398)
 		}
 
-		auto rcout_msg = boost::make_shared<mavros_msgs::RCOut>();
+		auto rcout_msg = std::make_shared<mavros_msgs::msg::RCOut>();
 
 		// XXX: Why time_usec is 32 bit? We should test that.
 		uint64_t time_usec = port.time_usec;
@@ -226,10 +226,10 @@ private:
 		has_rc_channels_msg = false;
 	}
 
-	void override_cb(const mavros_msgs::OverrideRCIn::ConstPtr req)
+	void override_cb(const mavros_msgs::msg::OverrideRCIn::ConstPtr req)
 	{
 		if (!m_uas->is_ardupilotmega() && !m_uas->is_px4())
-			ROS_WARN_THROTTLE_NAMED(30, "rc", "RC override not supported by this FCU!");
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(,30, "rc", "RC override not supported by this FCU!");
 
 		mavlink::common::msg::RC_CHANNELS_OVERRIDE ovr;
 		ovr.target_system = m_uas->get_tgt_system();
@@ -255,5 +255,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::RCIOPlugin, mavros::plugin::PluginBase)

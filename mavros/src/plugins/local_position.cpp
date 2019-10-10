@@ -19,14 +19,14 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/AccelWithCovarianceStamped.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <geometry_msgs/TwistWithCovarianceStamped.h>
-#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/msg/accel_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
-#include <nav_msgs/Odometry.h>
+#include <nav_msgs/msg/odometry.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -57,13 +57,13 @@ public:
 		lp_nh.param<std::string>("tf/frame_id", tf_frame_id, "map");
 		lp_nh.param<std::string>("tf/child_frame_id", tf_child_frame_id, "base_link");
 
-		local_position = lp_nh.advertise<geometry_msgs::PoseStamped>("pose", 10);
-		local_position_cov = lp_nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("pose_cov", 10);
-		local_velocity_local = lp_nh.advertise<geometry_msgs::TwistStamped>("velocity_local", 10);
-		local_velocity_body = lp_nh.advertise<geometry_msgs::TwistStamped>("velocity_body", 10);
-		local_velocity_cov = lp_nh.advertise<geometry_msgs::TwistWithCovarianceStamped>("velocity_body_cov", 10);
-		local_accel = lp_nh.advertise<geometry_msgs::AccelWithCovarianceStamped>("accel", 10);
-		local_odom = lp_nh.advertise<nav_msgs::Odometry>("odom",10);
+		local_position = lp_nh->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 10);
+		local_position_cov = lp_nh->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("pose_cov", 10);
+		local_velocity_local = lp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("velocity_local", 10);
+		local_velocity_body = lp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("velocity_body", 10);
+		local_velocity_cov = lp_nh->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("velocity_body_cov", 10);
+		local_accel = lp_nh->create_publisher<geometry_msgs::msg::AccelWithCovarianceStamped>("accel", 10);
+		local_odom = lp_nh->create_publisher<nav_msgs::msg::Odometry>("odom",10);
 	}
 
 	Subscriptions get_subscriptions() {
@@ -74,15 +74,15 @@ public:
 	}
 
 private:
-	ros::NodeHandle lp_nh;
+	rclcpp::Node::SharedPtr lp_nh;
 
-	ros::Publisher local_position;
-	ros::Publisher local_position_cov;
-	ros::Publisher local_velocity_local;
-	ros::Publisher local_velocity_body;
-	ros::Publisher local_velocity_cov;
-	ros::Publisher local_accel;
-	ros::Publisher local_odom;
+	rclcpp::Publisher<>::SharedPtr local_position;
+	rclcpp::Publisher<>::SharedPtr local_position_cov;
+	rclcpp::Publisher<>::SharedPtr local_velocity_local;
+	rclcpp::Publisher<>::SharedPtr local_velocity_body;
+	rclcpp::Publisher<>::SharedPtr local_velocity_cov;
+	rclcpp::Publisher<>::SharedPtr local_accel;
+	rclcpp::Publisher<>::SharedPtr local_odom;
 
 	std::string frame_id;		//!< frame for Pose
 	std::string tf_frame_id;	//!< origin for TF
@@ -91,10 +91,10 @@ private:
 	bool has_local_position_ned;
 	bool has_local_position_ned_cov;
 
-	void publish_tf(boost::shared_ptr<nav_msgs::Odometry> &odom)
+	void publish_tf(std::shared_ptr<nav_msgs::msg::Odometry> &odom)
 	{
 		if (tf_send) {
-			geometry_msgs::TransformStamped transform;
+			geometry_msgs::msg::TransformStamped transform;
 			transform.header.stamp = odom->header.stamp;
 			transform.header.frame_id = tf_frame_id;
 			transform.child_frame_id = tf_child_frame_id;
@@ -122,7 +122,7 @@ private:
 		tf::quaternionMsgToEigen(enu_orientation_msg, enu_orientation);
 		auto baselink_linear = ftf::transform_frame_enu_baselink(enu_velocity, enu_orientation.inverse());
 
-		auto odom = boost::make_shared<nav_msgs::Odometry>();
+		auto odom = std::make_shared<nav_msgs::msg::Odometry>();
 		odom->header = m_uas->synchronized_header(frame_id, pos_ned.time_boot_ms);
 		odom->child_frame_id = tf_child_frame_id;
 
@@ -137,14 +137,14 @@ private:
 		}
 
 		// publish pose always
-		auto pose = boost::make_shared<geometry_msgs::PoseStamped>();
+		auto pose = std::make_shared<geometry_msgs::msg::PoseStamped>();
 		pose->header = odom->header;
 		pose->pose = odom->pose.pose;
 		local_position.publish(pose);
 
 		// publish velocity always
 		// velocity in the body frame
-		auto twist_body = boost::make_shared<geometry_msgs::TwistStamped>();
+		auto twist_body = std::make_shared<geometry_msgs::msg::TwistStamped>();
 		twist_body->header.stamp = odom->header.stamp;
 		twist_body->header.frame_id = tf_child_frame_id;
 		twist_body->twist.linear = odom->twist.twist.linear;
@@ -152,7 +152,7 @@ private:
 		local_velocity_body.publish(twist_body);
 
 		// velocity in the local frame
-		auto twist_local = boost::make_shared<geometry_msgs::TwistStamped>();
+		auto twist_local = std::make_shared<geometry_msgs::msg::TwistStamped>();
 		twist_local->header.stamp = twist_body->header.stamp;
 		twist_local->header.frame_id = tf_child_frame_id;
 		tf::vectorEigenToMsg(enu_velocity, twist_local->twist.linear);
@@ -177,7 +177,7 @@ private:
 		tf::quaternionMsgToEigen(enu_orientation_msg, enu_orientation);
 		auto baselink_linear = ftf::transform_frame_enu_baselink(enu_velocity, enu_orientation.inverse());
 
-		auto odom = boost::make_shared<nav_msgs::Odometry>();
+		auto odom = std::make_shared<nav_msgs::msg::Odometry>();
 		odom->header = m_uas->synchronized_header(frame_id, pos_ned.time_usec);
 		odom->child_frame_id = tf_child_frame_id;
 
@@ -199,13 +199,13 @@ private:
 		local_odom.publish(odom);
 
 		// publish pose_cov always
-		auto pose_cov = boost::make_shared<geometry_msgs::PoseWithCovarianceStamped>();
+		auto pose_cov = std::make_shared<geometry_msgs::msg::PoseWithCovarianceStamped>();
 		pose_cov->header = odom->header;
 		pose_cov->pose = odom->pose;
 		local_position_cov.publish(pose_cov);
 
 		// publish velocity_cov always
-		auto twist_cov = boost::make_shared<geometry_msgs::TwistWithCovarianceStamped>();
+		auto twist_cov = std::make_shared<geometry_msgs::msg::TwistWithCovarianceStamped>();
 		twist_cov->header.stamp = odom->header.stamp;
 		twist_cov->header.frame_id = odom->child_frame_id;
 		twist_cov->twist = odom->twist;
@@ -213,12 +213,12 @@ private:
 
 		// publish pose, velocity, tf if we don't have LOCAL_POSITION_NED
 		if (!has_local_position_ned) {
-			auto pose = boost::make_shared<geometry_msgs::PoseStamped>();
+			auto pose = std::make_shared<geometry_msgs::msg::PoseStamped>();
 			pose->header = odom->header;
 			pose->pose = odom->pose.pose;
 			local_position.publish(pose);
 
-			auto twist = boost::make_shared<geometry_msgs::TwistStamped>();
+			auto twist = std::make_shared<geometry_msgs::msg::TwistStamped>();
 			twist->header.stamp = odom->header.stamp;
 			twist->header.frame_id = odom->child_frame_id;
 			twist->twist = odom->twist.twist;
@@ -229,7 +229,7 @@ private:
 		}
 
 		// publish accelerations
-		auto accel = boost::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
+		auto accel = std::make_shared<geometry_msgs::msg::AccelWithCovarianceStamped>();
 		accel->header = odom->header;
 
 		auto enu_accel = ftf::transform_frame_ned_enu(Eigen::Vector3d(pos_ned.ax, pos_ned.ay, pos_ned.az));
@@ -245,5 +245,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::LocalPositionPlugin, mavros::plugin::PluginBase)

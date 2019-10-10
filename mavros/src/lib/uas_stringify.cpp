@@ -165,7 +165,7 @@ static inline std::string str_mode_px4(uint32_t custom_mode_int)
 	// clear fields
 	custom_mode.reserved = 0;
 	if (custom_mode.main_mode != px4::custom_mode::MAIN_MODE_AUTO) {
-		ROS_WARN_COND_NAMED(custom_mode.sub_mode != 0, "uas", "PX4: Unknown sub-mode %d.%d",
+		RCUTILS_LOG_WARN_EXPRESSION_NAMED(custom_mode.sub_mode != 0, "uas", "PX4: Unknown sub-mode %d.%d",
 			custom_mode.main_mode, custom_mode.sub_mode);
 		custom_mode.sub_mode = 0;
 	}
@@ -201,7 +201,7 @@ std::string UAS::str_mode_v10(uint8_t base_mode, uint32_t custom_mode)
 		else if (type == MAV_TYPE::SUBMARINE)
 			return str_mode_cmap(ardusub_cmode_map, custom_mode);
 		else {
-			ROS_WARN_THROTTLE_NAMED(30, "uas", "MODE: Unknown APM based FCU! Type: %d", enum_value(type));
+			RCUTILS_LOG_WARN_THROTTLE_NAMED("what the fuck", 30, "uas", "MODE: Unknown APM based FCU! Type: %d", enum_value(type));
 			return str_custom_mode(custom_mode);
 		}
 	}
@@ -241,8 +241,8 @@ static bool cmode_find_cmap(const cmode_map &cmap, std::string &cmode_str, uint3
 	for (auto &mode : cmap)
 		os << " " << mode.second;
 
-	ROS_ERROR_STREAM_NAMED("uas", "MODE: Unknown mode: " << cmode_str);
-	ROS_INFO_STREAM_NAMED("uas", "MODE: Known modes are:" << os.str());
+	RCUTILS_LOG_ERROR_NAMED("uas", "MODE: Unknown mode: %s", cmode_str.c_str());
+	RCUTILS_LOG_INFO_NAMED("uas", "MODE: Known modes are:%s", os.str().c_str());
 
 	return false;
 }
@@ -267,6 +267,6 @@ bool UAS::cmode_from_str(std::string cmode_str, uint32_t &custom_mode)
 	else if (MAV_AUTOPILOT::PX4 == ap)
 		return cmode_find_cmap(px4_cmode_map, cmode_str, custom_mode);
 
-	ROS_ERROR_NAMED("uas", "MODE: Unsupported FCU");
+	RCUTILS_LOG_ERROR_NAMED("uas", "MODE: Unsupported FCU");
 	return false;
 }

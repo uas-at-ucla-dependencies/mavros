@@ -19,7 +19,7 @@
 #include <angles/angles.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/TwistWithCovarianceStamped.h>
+#include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -39,7 +39,7 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		wind_pub = nh.advertise<geometry_msgs::TwistWithCovarianceStamped>("wind_estimation", 10);
+		wind_pub = nh->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("wind_estimation", 10);
 	}
 
 	Subscriptions get_subscriptions()
@@ -51,9 +51,9 @@ public:
 	}
 
 private:
-	ros::NodeHandle nh;
+	rclcpp::Node::SharedPtr nh;
 
-	ros::Publisher wind_pub;
+	rclcpp::Publisher<>::SharedPtr wind_pub;
 
 	/**
 	 * Handle APM specific wind estimation message
@@ -63,8 +63,8 @@ private:
 		const double speed = wind.speed;
 		const double course = -angles::from_degrees(wind.direction);	// direction "from" -> direction "to"
 
-		auto twist_cov = boost::make_shared<geometry_msgs::TwistWithCovarianceStamped>();
-		twist_cov->header.stamp = ros::Time::now();
+		auto twist_cov = std::make_shared<geometry_msgs::msg::TwistWithCovarianceStamped>();
+		twist_cov->header.stamp = rclcpp::Time::now();
 		// TODO: check math's
 		twist_cov->twist.twist.linear.x = speed * std::sin(course);	// E
 		twist_cov->twist.twist.linear.y = speed * std::cos(course);	// N
@@ -83,7 +83,7 @@ private:
 	 */
 	void handle_px4_wind(const mavlink::mavlink_message_t *msg, mavlink::common::msg::WIND_COV &wind)
 	{
-		auto twist_cov = boost::make_shared<geometry_msgs::TwistWithCovarianceStamped>();
+		auto twist_cov = std::make_shared<geometry_msgs::msg::TwistWithCovarianceStamped>();
 		twist_cov->header.stamp = m_uas->synchronise_stamp(wind.time_usec);
 
 		tf::vectorEigenToMsg(ftf::transform_frame_ned_enu(Eigen::Vector3d(wind.wind_x, wind.wind_y, wind.wind_z)),
@@ -101,5 +101,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::WindEstimationPlugin, mavros::plugin::PluginBase)

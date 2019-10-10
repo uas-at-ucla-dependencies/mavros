@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/RadioStatus.h>
+#include <mavros_msgs/msg/radio_status.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -26,7 +26,6 @@ namespace std_plugins {
 class TDRRadioPlugin : public plugin::PluginBase {
 public:
 	TDRRadioPlugin() : PluginBase(),
-		nh("~"),
 		has_radio_status(false),
 		diag_added(false),
 		low_rssi(0)
@@ -36,9 +35,11 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		nh.param("tdr_radio/low_rssi", low_rssi, 40);
+		nh = uas_.mavros_node;
 
-		status_pub = nh.advertise<mavros_msgs::RadioStatus>("radio_status", 10);
+		low_rssi = nh->declare_parameter<int>("tdr_radio/low_rssi", 40);
+
+		status_pub = nh->create_publisher<mavros_msgs::msg::RadioStatus>("radio_status", 10);
 
 		enable_connection_cb();
 	}
@@ -52,16 +53,16 @@ public:
 	}
 
 private:
-	ros::NodeHandle nh;
+	rclcpp::Node* nh;
 
 	bool has_radio_status;
 	bool diag_added;
 	int low_rssi;
 
-	ros::Publisher status_pub;
+	rclcpp::Publisher<mavros_msgs::msg::RadioStatus>::SharedPtr status_pub;
 
 	std::mutex diag_mutex;
-	mavros_msgs::RadioStatus::Ptr last_status;
+	mavros_msgs::msg::RadioStatus::SharedPtr last_status;
 
 	/* -*- message handlers -*- */
 
@@ -84,11 +85,11 @@ private:
 	void handle_message(const mavlink::mavlink_message_t *mmsg, msgT &rst)
 	{
 		if (mmsg->sysid != '3' || mmsg->compid != 'D')
-			ROS_WARN_THROTTLE_NAMED(30, "radio", "RADIO_STATUS not from 3DR modem?");
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(,30, "radio", "RADIO_STATUS not from 3DR modem?");
 
-		auto msg = boost::make_shared<mavros_msgs::RadioStatus>();
+		auto msg = std::make_shared<mavros_msgs::msg::RadioStatus>();
 
-		msg->header.stamp = ros::Time::now();
+		msg->header.stamp = rclcpp::Clock().now();
 
 #define RST_COPY(field)	msg->field = rst.field
 		RST_COPY(rssi);
@@ -116,7 +117,7 @@ private:
 			last_status = msg;
 		}
 
-		status_pub.publish(msg);
+		status_pub->publish(*msg);
 	}
 
 
@@ -156,5 +157,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::TDRRadioPlugin, mavros::plugin::PluginBase)

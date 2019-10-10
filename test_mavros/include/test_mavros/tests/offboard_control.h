@@ -21,9 +21,9 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <test_mavros/sitl_test/sitl_test.h>
 
-#include <geometry_msgs/Point.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/msg/Point.hpp>
+#include <geometry_msgs/msg/PoseStamped.hpp>
+#include <geometry_msgs/msg/TwistStamped.hpp>
 
 namespace testsetup {
 /**

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>libmavconn</name>
   <version>0.32.2</version>
   <description>
@@ -20,7 +20,7 @@
   <url type="repository">https://github.com/mavlink/mavros.git</url>
   <url type="bugtracker">https://github.com/mavlink/mavros/issues</url>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>boost</depend>
   <depend>mavlink</depend>
@@ -30,6 +30,7 @@
   <test_depend>gtest</test_depend>
 
   <export>
+    <build_type>ament_cmake</build_type>
     <rosdoc config="rosdoc.yaml" />
   </export>
 </package>

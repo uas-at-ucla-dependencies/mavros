@@ -17,7 +17,7 @@
 #include <array>
 #include <unordered_map>
 #include <mavros/utils.h>
-#include <ros/console.h>
+#include <rclcpp/logging.hpp>
 
 namespace mavros {
 namespace utils {
@@ -33,6 +33,8 @@ using mavlink::common::MAV_MISSION_RESULT;
 using mavlink::common::MAV_FRAME;
 using mavlink::common::MAV_DISTANCE_SENSOR;
 using mavlink::common::LANDING_TARGET_TYPE;
+
+static rclcpp::Logger logger = rclcpp::get_logger("uas");
 
 // [[[cog:
 // import pymavlink.dialects.v20.common as common
@@ -326,7 +328,7 @@ timesync_mode timesync_mode_from_str(const std::string &mode)
 		}
 	}
 
-	ROS_ERROR_STREAM_NAMED("uas", "TM: Unknown mode: " << mode);
+	RCLCPP_ERROR(logger, "TM: Unknown mode: %s", mode.c_str());
 	return timesync_mode::NONE;
 }
 
@@ -601,7 +603,7 @@ MAV_FRAME mav_frame_from_str(const std::string &mav_frame)
 		}
 	}
 
-	ROS_ERROR_STREAM_NAMED("uas", "FRAME: Unknown MAV_FRAME: " << mav_frame);
+	RCLCPP_ERROR(logger, "FRAME: Unknown MAV_FRAME: %s", mav_frame.c_str());
 	return MAV_FRAME::LOCAL_NED;
 }
 
@@ -613,7 +615,7 @@ MAV_TYPE mav_type_from_str(const std::string &mav_type)
 			return static_cast<MAV_TYPE>(rv);
 		}
 	}
-	ROS_ERROR_STREAM_NAMED("uas", "TYPE: Unknown MAV_TYPE: " << mav_type);
+	RCLCPP_ERROR(logger, "TYPE: Unknown MAV_TYPE: %s", mav_type.c_str());
 	return MAV_TYPE::GENERIC;
 }
 
@@ -670,7 +672,8 @@ LANDING_TARGET_TYPE landing_target_type_from_str(const std::string &landing_targ
 			return static_cast<LANDING_TARGET_TYPE>(rv);
 		}
 	}
-	ROS_ERROR_STREAM_NAMED("uas", "TYPE: Unknown LANDING_TARGET_TYPE: " << landing_target_type << ". Defaulting to LIGHT_BEACON");
+	RCLCPP_ERROR(logger, "TYPE: Unknown LANDING_TARGET_TYPE: %s"". Defaulting to LIGHT_BEACON",
+		landing_target_type.c_str());
 	return LANDING_TARGET_TYPE::LIGHT_BEACON;
 }
 

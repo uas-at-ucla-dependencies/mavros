@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <mavros/frame_tf.h>
 
 using namespace mavros;

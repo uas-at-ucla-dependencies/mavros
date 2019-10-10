@@ -19,8 +19,8 @@
 #include <mavros/setpoint_mixin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <geometry_msgs/msg/PoseStamped.hpp>
+#include <geometry_msgs/msg/PoseWithCovarianceStamped.hpp>
 
 namespace mavros {
 namespace extra_plugins{

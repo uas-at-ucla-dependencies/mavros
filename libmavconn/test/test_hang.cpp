@@ -11,7 +11,7 @@
  *     -DMAVLINK_DIALECT=ardupilotmega
  */
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include <mavconn/interface.h>
 

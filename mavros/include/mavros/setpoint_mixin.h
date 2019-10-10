@@ -20,7 +20,7 @@
 #include <mavros/utils.h>
 #include <mavros/mavros_plugin.h>
 
-#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 #include "tf2_ros/message_filter.h"
 #include <message_filters/subscriber.h>
@@ -175,7 +175,7 @@ public:
 	 * @param _thd_name  listener thread name
 	 * @param cbp        plugin callback function
 	 */
-	void tf2_start(const char *_thd_name, void (D::*cbp)(const geometry_msgs::TransformStamped &) )
+	void tf2_start(const char *_thd_name, void (D::*cbp)(const geometry_msgs::msg::TransformStamped &) )
 	{
 		tf_thd_name = _thd_name;
 		auto tf_transform_cb = std::bind(cbp, static_cast<D *>(this), std::placeholders::_1);
@@ -190,10 +190,10 @@ public:
 			ros::Rate rate(static_cast<D *>(this)->tf_rate);
 			while (ros::ok()) {
 				// Wait up to 3s for transform
-				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, ros::Time(0), ros::Duration(3.0))) {
+				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0))) {
 					try {
 						auto transform = m_uas_->tf2_buffer.lookupTransform(
-								_frame_id, _child_frame_id, ros::Time(0), ros::Duration(3.0));
+								_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0));
 						tf_transform_cb(transform);
 					}
 					catch (tf2::LookupException &ex) {
@@ -212,7 +212,7 @@ public:
 	 * @param cbp        plugin callback function
 	 */
 	template <class T>
-	void tf2_start(const char *_thd_name, message_filters::Subscriber<T> &topic_sub, void (D::*cbp)(const geometry_msgs::TransformStamped &, const typename T::ConstPtr &))
+	void tf2_start(const char *_thd_name, message_filters::Subscriber<T> &topic_sub, void (D::*cbp)(const geometry_msgs::msg::TransformStamped &, const typename T::ConstPtr &))
 	{
 		tf_thd_name = _thd_name;
 
@@ -229,12 +229,12 @@ public:
 			ros::Rate rate(static_cast<D *>(this)->tf_rate);
 			while (ros::ok()) {
 				// Wait up to 3s for transform
-				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, ros::Time(0), ros::Duration(3.0))) {
+				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0))) {
 					try {
 						auto transform = m_uas_->tf2_buffer.lookupTransform(
-								_frame_id, _child_frame_id, ros::Time(0), ros::Duration(3.0));
+								_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0));
 
-						tf2_filter.registerCallback(boost::bind(cbp, static_cast<D *>(this), transform, _1));
+						tf2_filter.registerCallback(std::bind(cbp, static_cast<D *>(this), transform, _1));
 					}
 					catch (tf2::LookupException &ex) {
 						ROS_ERROR_NAMED("tf2_buffer", "%s: %s", tf_thd_name.c_str(), ex.what());

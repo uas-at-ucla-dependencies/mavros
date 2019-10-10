@@ -17,9 +17,9 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <std_srvs/Trigger.h>
-#include <mavros_msgs/CommandLong.h>
-#include <mavros_msgs/HomePosition.h>
+#include <std_srvs/srv/trigger.h>
+#include <mavros_msgs/srv/command_long.hpp>
+#include <mavros_msgs/msg/home_position.hpp>
 
 
 namespace mavros {
@@ -40,11 +40,11 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		hp_pub = hp_nh.advertise<mavros_msgs::HomePosition>("home", 2, true);
-		hp_sub = hp_nh.subscribe("set", 10, &HomePositionPlugin::home_position_cb, this);
-		update_srv = hp_nh.advertiseService("req_update", &HomePositionPlugin::req_update_cb, this);
+		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("home", 2, true);
+		hp_sub = hp_nh->create_subscription("set", 10, std::bind(&HomePositionPlugin, this, std::placeholders::_1));
+		update_srv = hp_nh->create_service("req_update", std::bind(&HomePositionPlugin, this, std::placeholders::_1));
 
-		poll_timer = hp_nh.createTimer(REQUEST_POLL_TIME_DT, &HomePositionPlugin::timeout_cb, this);
+		poll_timer = hp_nh.createTimer(REQUEST_POLL_TIME_DT, std::bind(&HomePositionPlugin, this, std::placeholders::_1));
 		poll_timer.stop();
 		enable_connection_cb();
 	}
@@ -57,13 +57,13 @@ public:
 	}
 
 private:
-	ros::NodeHandle hp_nh;
+	rclcpp::Node::SharedPtr hp_nh;
 
-	ros::Publisher hp_pub;
-	ros::Subscriber hp_sub;
-	ros::ServiceServer update_srv;
+	rclcpp::Publisher<>::SharedPtr hp_pub;
+	rclcpp::Subscription<>::SharedPtr hp_sub;
+	rclcpp::Service<>::SharedPtr update_srv;
 
-	ros::Timer poll_timer;
+	rclcpp::Timer poll_timer;
 
 	static constexpr int REQUEST_POLL_TIME_MS = 10000;	//! position refresh poll interval
 	const ros::Duration REQUEST_POLL_TIME_DT;
@@ -75,10 +75,10 @@ private:
 		bool ret = false;
 
 		try {
-			ros::NodeHandle pnh("~");
-			auto client = pnh.serviceClient<mavros_msgs::CommandLong>("cmd/command");
+			rclcpp::Node::SharedPtr pnh("~");
+			auto client = pnh.serviceClient<mavros_msgs::msg::CommandLong>("cmd/command");
 
-			mavros_msgs::CommandLong cmd{};
+			mavros_msgs::msg::CommandLong cmd{};
 
 			cmd.request.command = utils::enum_value(MAV_CMD::GET_HOME_POSITION);
 
@@ -86,7 +86,7 @@ private:
 			ret = cmd.response.success;
 		}
 		catch (ros::InvalidNameException &ex) {
-			ROS_ERROR_NAMED("home_position", "HP: %s", ex.what());
+			RCUTILS_LOG_ERROR_NAMED("home_position", "HP: %s", ex.what());
 		}
 
 		return ret;
@@ -96,13 +96,13 @@ private:
 	{
 		poll_timer.stop();
 
-		auto hp = boost::make_shared<mavros_msgs::HomePosition>();
+		auto hp = std::make_shared<mavros_msgs::msg::HomePosition>();
 
 		auto pos = ftf::transform_frame_ned_enu(Eigen::Vector3d(home_position.x, home_position.y, home_position.z));
 		auto q = ftf::transform_orientation_ned_enu(ftf::mavlink_to_quaternion(home_position.q));
 		auto hp_approach_enu = ftf::transform_frame_ned_enu(Eigen::Vector3d(home_position.approach_x, home_position.approach_y, home_position.approach_z));
 
-		hp->header.stamp = ros::Time::now();
+		hp->header.stamp = rclcpp::Time::now();
 		hp->geo.latitude = home_position.latitude / 1E7;		// deg
 		hp->geo.longitude = home_position.longitude / 1E7;		// deg
 		hp->geo.altitude = home_position.altitude / 1E3 + m_uas->geoid_to_ellipsoid_height(&hp->geo);	// in meters
@@ -110,11 +110,11 @@ private:
 		tf::pointEigenToMsg(pos, hp->position);
 		tf::vectorEigenToMsg(hp_approach_enu, hp->approach);
 
-		ROS_DEBUG_NAMED("home_position", "HP: Home lat %f, long %f, alt %f", hp->geo.latitude, hp->geo.longitude, hp->geo.altitude);
+		RCUTILS_LOG_DEBUG_NAMED("home_position", "HP: Home lat %f, long %f, alt %f", hp->geo.latitude, hp->geo.longitude, hp->geo.altitude);
 		hp_pub.publish(hp);
 	}
 
-	void home_position_cb(const mavros_msgs::HomePosition::ConstPtr &req)
+	void home_position_cb(const mavros_msgs::msg::HomePosition::ConstPtr &req)
 	{
 		mavlink::common::msg::SET_HOME_POSITION hp {};
 
@@ -160,9 +160,9 @@ private:
 		return true;
 	}
 
-	void timeout_cb(const ros::TimerEvent &event)
+	void timeout_cb(const rclcpp::TimerEvent &event)
 	{
-		ROS_INFO_NAMED("home_position", "HP: requesting home position");
+		RCUTILS_LOG_INFO_NAMED("home_position", "HP: requesting home position");
 		call_get_home_position();
 	}
 
@@ -177,5 +177,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::HomePositionPlugin, mavros::plugin::PluginBase)

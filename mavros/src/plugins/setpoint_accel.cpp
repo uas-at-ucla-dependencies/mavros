@@ -20,7 +20,7 @@
 #include <mavros/setpoint_mixin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/Vector3Stamped.h>
+#include <geometry_msgs/msg/vector3_stamped.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -43,7 +43,7 @@ public:
 
 		sp_nh.param("send_force", send_force, false);
 
-		accel_sub = sp_nh.subscribe("accel", 10, &SetpointAccelerationPlugin::accel_cb, this);
+		accel_sub = sp_nh->create_subscription("accel", 10, std::bind(&SetpointAccelerationPlugin, this, std::placeholders::_1));
 	}
 
 	Subscriptions get_subscriptions()
@@ -53,9 +53,9 @@ public:
 
 private:
 	friend class SetPositionTargetLocalNEDMixin;
-	ros::NodeHandle sp_nh;
+	rclcpp::Node::SharedPtr sp_nh;
 
-	ros::Subscriber accel_sub;
+	rclcpp::Subscription<>::SharedPtr accel_sub;
 
 	bool send_force;
 
@@ -66,7 +66,7 @@ private:
 	 *
 	 * @warning Send only AFX AFY AFZ. ENU frame.
 	 */
-	void send_setpoint_acceleration(const ros::Time &stamp, Eigen::Vector3d &accel_enu)
+	void send_setpoint_acceleration(const rclcpp::Time &stamp, Eigen::Vector3d &accel_enu)
 	{
 		using mavlink::common::MAV_FRAME;
 
@@ -91,7 +91,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void accel_cb(const geometry_msgs::Vector3Stamped::ConstPtr &req) {
+	void accel_cb(const geometry_msgs::msg::Vector3Stamped::ConstPtr &req) {
 		Eigen::Vector3d accel_enu;
 
 		tf::vectorMsgToEigen(req->vector, accel_enu);
@@ -101,5 +101,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::SetpointAccelerationPlugin, mavros::plugin::PluginBase)

@@ -20,8 +20,8 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <boost/algorithm/string.hpp>
 
-#include <nav_msgs/Odometry.h>
-#include <geometry_msgs/TransformStamped.h>
+#include <nav_msgs/msg/Odometry.hpp>
+#include <geometry_msgs/msg/TransformStamped.hpp>
 
 namespace mavros {
 namespace extra_plugins {

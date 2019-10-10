@@ -18,8 +18,8 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/msg/PoseStamped.hpp>
+#include <geometry_msgs/msg/TransformStamped.hpp>
 
 
 namespace mavros {

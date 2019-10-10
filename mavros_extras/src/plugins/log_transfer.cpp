@@ -1,9 +1,9 @@
 #include <mavros/mavros_plugin.h>
-#include <mavros_msgs/LogData.h>
-#include <mavros_msgs/LogEntry.h>
-#include <mavros_msgs/LogRequestData.h>
-#include <mavros_msgs/LogRequestEnd.h>
-#include <mavros_msgs/LogRequestList.h>
+#include <mavros_msgs/msg/LogData.hpp>
+#include <mavros_msgs/msg/LogEntry.hpp>
+#include <mavros_msgs/msg/LogRequestData.hpp>
+#include <mavros_msgs/msg/LogRequestEnd.hpp>
+#include <mavros_msgs/msg/LogRequestList.hpp>
 
 namespace mavros {
 namespace extra_plugins {

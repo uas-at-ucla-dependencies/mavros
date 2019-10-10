@@ -20,7 +20,7 @@
 #include <tuple>
 #include <vector>
 #include <functional>
-#include <diagnostic_updater/diagnostic_updater.h>
+#include <diagnostic_updater/diagnostic_updater.hpp>
 #include <mavconn/interface.h>
 #include <mavros/mavros_uas.h>
 
@@ -47,9 +47,9 @@ public:
 	//! Subscriptions vector
 	using Subscriptions = std::vector<HandlerInfo>;
 
-	// pluginlib return boost::shared_ptr
-	using Ptr = boost::shared_ptr<PluginBase>;
-	using ConstPtr = boost::shared_ptr<PluginBase const>;
+	// pluginlib return std::shared_ptr
+	using Ptr = std::shared_ptr<PluginBase>;
+	using ConstPtr = std::shared_ptr<PluginBase const>;
 
 	virtual ~PluginBase() {};
 
@@ -123,7 +123,7 @@ protected:
 	 * Common callback called on connection change
 	 */
 	virtual void connection_cb(bool connected) {
-		ROS_BREAK();
+		assert(0 && "connection_cb unimplemented");
 	}
 
 	/**

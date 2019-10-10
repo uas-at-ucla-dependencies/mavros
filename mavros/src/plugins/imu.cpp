@@ -18,11 +18,11 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/MagneticField.h>
-#include <sensor_msgs/Temperature.h>
-#include <sensor_msgs/FluidPressure.h>
-#include <geometry_msgs/Vector3.h>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/magnetic_field.hpp>
+#include <sensor_msgs/msg/temperature.hpp>
+#include <sensor_msgs/msg/fluid_pressure.hpp>
+#include <geometry_msgs/msg/vector3.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -48,7 +48,6 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	IMUPlugin() : PluginBase(),
-		imu_nh("~imu"),
 		has_hr_imu(false),
 		has_raw_imu(false),
 		has_scaled_imu(false),
@@ -62,6 +61,8 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
+		imu_nh = uas_.mavros_node->create_sub_node("imu");
+
 		double linear_stdev, angular_stdev, orientation_stdev, mag_stdev;
 
 		/**
@@ -70,11 +71,11 @@ public:
 		 * transformation from the ENU frame to the base_link frame (ENU <-> base_link).
 		 * THIS ORIENTATION IS NOT THE SAME AS THAT REPORTED BY THE FCU (NED <-> aircraft).
 		 */
-		imu_nh.param<std::string>("frame_id", frame_id, "base_link");
-		imu_nh.param("linear_acceleration_stdev", linear_stdev, 0.0003);		// check default by MPU6000 spec
-		imu_nh.param("angular_velocity_stdev", angular_stdev, 0.02 * (M_PI / 180.0));	// check default by MPU6000 spec
-		imu_nh.param("orientation_stdev", orientation_stdev, 1.0);
-		imu_nh.param("magnetic_stdev", mag_stdev, 0.0);
+		// imu_nh.param<std::string>("frame_id", frame_id, "base_link");
+		// imu_nh.param("linear_acceleration_stdev", linear_stdev, 0.0003);		// check default by MPU6000 spec
+		// imu_nh.param("angular_velocity_stdev", angular_stdev, 0.02 * (M_PI / 180.0));	// check default by MPU6000 spec
+		// imu_nh.param("orientation_stdev", orientation_stdev, 1.0);
+		// imu_nh.param("magnetic_stdev", mag_stdev, 0.0);
 
 		setup_covariance(linear_acceleration_cov, linear_stdev);
 		setup_covariance(angular_velocity_cov, angular_stdev);
@@ -82,13 +83,13 @@ public:
 		setup_covariance(magnetic_cov, mag_stdev);
 		setup_covariance(unk_orientation_cov, 0.0);
 
-		imu_pub = imu_nh.advertise<sensor_msgs::Imu>("data", 10);
-		magn_pub = imu_nh.advertise<sensor_msgs::MagneticField>("mag", 10);
-		temp_imu_pub = imu_nh.advertise<sensor_msgs::Temperature>("temperature_imu", 10);
-		temp_baro_pub = imu_nh.advertise<sensor_msgs::Temperature>("temperature_baro", 10);
-		static_press_pub = imu_nh.advertise<sensor_msgs::FluidPressure>("static_pressure", 10);
-		diff_press_pub = imu_nh.advertise<sensor_msgs::FluidPressure>("diff_pressure", 10);
-		imu_raw_pub = imu_nh.advertise<sensor_msgs::Imu>("data_raw", 10);
+		imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data", 10);
+		magn_pub = imu_nh->create_publisher<sensor_msgs::msg::MagneticField>("mag", 10);
+		temp_imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Temperature>("temperature_imu", 10);
+		temp_baro_pub = imu_nh->create_publisher<sensor_msgs::msg::Temperature>("temperature_baro", 10);
+		static_press_pub = imu_nh->create_publisher<sensor_msgs::msg::FluidPressure>("static_pressure", 10);
+		diff_press_pub = imu_nh->create_publisher<sensor_msgs::msg::FluidPressure>("diff_pressure", 10);
+		imu_raw_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data_raw", 10);
 
 		// Reset has_* flags on connection change
 		enable_connection_cb();
@@ -106,16 +107,16 @@ public:
 	}
 
 private:
-	ros::NodeHandle imu_nh;
+	rclcpp::Node::SharedPtr imu_nh;
 	std::string frame_id;
 
-	ros::Publisher imu_pub;
-	ros::Publisher imu_raw_pub;
-	ros::Publisher magn_pub;
-	ros::Publisher temp_imu_pub;
-	ros::Publisher temp_baro_pub;
-	ros::Publisher static_press_pub;
-	ros::Publisher diff_press_pub;
+	rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub;
+	rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_raw_pub;
+	rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr magn_pub;
+	rclcpp::Publisher<sensor_msgs::msg::Temperature>::SharedPtr temp_imu_pub;
+	rclcpp::Publisher<sensor_msgs::msg::Temperature>::SharedPtr temp_baro_pub;
+	rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr static_press_pub;
+	rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr diff_press_pub;
 
 	bool has_hr_imu;
 	bool has_raw_imu;
@@ -163,22 +164,22 @@ private:
 	void publish_imu_data(uint32_t time_boot_ms, Eigen::Quaterniond &orientation_enu,
 				Eigen::Quaterniond &orientation_ned, Eigen::Vector3d &gyro_flu, Eigen::Vector3d &gyro_frd)
 	{
-		auto imu_ned_msg = boost::make_shared<sensor_msgs::Imu>();
-		auto imu_enu_msg = boost::make_shared<sensor_msgs::Imu>();
+		auto imu_ned_msg = std::make_shared<sensor_msgs::msg::Imu>();
+		auto imu_enu_msg = std::make_shared<sensor_msgs::msg::Imu>();
 
 		// Fill message header
 		imu_enu_msg->header = m_uas->synchronized_header(frame_id, time_boot_ms);
 		imu_ned_msg->header = m_uas->synchronized_header("aircraft", time_boot_ms);
 
-		// Convert from Eigen::Quaternond to geometry_msgs::Quaternion
+		// Convert from Eigen::Quaternond to geometry_msgs::msg::Quaternion
 		tf::quaternionEigenToMsg(orientation_enu, imu_enu_msg->orientation);
 		tf::quaternionEigenToMsg(orientation_ned, imu_ned_msg->orientation);
 
-		// Convert from Eigen::Vector3d to geometry_msgs::Vector3
+		// Convert from Eigen::Vector3d to geometry_msgs::msg::Vector3
 		tf::vectorEigenToMsg(gyro_flu, imu_enu_msg->angular_velocity);
 		tf::vectorEigenToMsg(gyro_frd, imu_ned_msg->angular_velocity);
 
-		// Eigen::Vector3d from HIGHRES_IMU or RAW_IMU, to geometry_msgs::Vector3
+		// Eigen::Vector3d from HIGHRES_IMU or RAW_IMU, to geometry_msgs::msg::Vector3
 		tf::vectorEigenToMsg(linear_accel_vec_flu, imu_enu_msg->linear_acceleration);
 		tf::vectorEigenToMsg(linear_accel_vec_frd, imu_ned_msg->linear_acceleration);
 
@@ -216,7 +217,7 @@ private:
 		 *  @snippet src/plugins/imu.cpp pub_enu
 		 */
 		// [pub_enu]
-		imu_pub.publish(imu_enu_msg);
+		imu_pub->publish(*imu_enu_msg);
 		// [pub_enu]
 	}
 
@@ -227,10 +228,10 @@ private:
 	 * @param accel_flu   Linear acceleration in the base_link Forward-Left-Up frame
 	 * @param accel_frd   Linear acceleration in the aircraft Forward-Right-Down frame
 	 */
-	void publish_imu_data_raw(std_msgs::Header &header, Eigen::Vector3d &gyro_flu,
+	void publish_imu_data_raw(std_msgs::msg::Header &header, Eigen::Vector3d &gyro_flu,
 				Eigen::Vector3d &accel_flu, Eigen::Vector3d &accel_frd)
 	{
-		auto imu_msg = boost::make_shared<sensor_msgs::Imu>();
+		auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
 
 		// Fill message header
 		imu_msg->header = header;
@@ -248,7 +249,7 @@ private:
 		imu_msg->linear_acceleration_covariance = linear_acceleration_cov;
 
 		// Publish message [ENU frame]
-		imu_raw_pub.publish(imu_msg);
+		imu_raw_pub->publish(*imu_msg);
 	}
 
 	/**
@@ -256,9 +257,9 @@ private:
 	 * @param header	Message frame_id and timestamp
 	 * @param mag_field	Magnetic field in the base_link ENU frame
 	 */
-	void publish_mag(std_msgs::Header &header, Eigen::Vector3d &mag_field)
+	void publish_mag(std_msgs::msg::Header &header, Eigen::Vector3d &mag_field)
 	{
-		auto magn_msg = boost::make_shared<sensor_msgs::MagneticField>();
+		auto magn_msg = std::make_shared<sensor_msgs::msg::MagneticField>();
 
 		// Fill message header
 		magn_msg->header = header;
@@ -267,7 +268,7 @@ private:
 		magn_msg->magnetic_field_covariance = magnetic_cov;
 
 		// Publish message [ENU frame]
-		magn_pub.publish(magn_msg);
+		magn_pub->publish(*magn_msg);
 	}
 
 	/* -*- message handlers -*- */
@@ -325,7 +326,7 @@ private:
 	 */
 	void handle_attitude_quaternion(const mavlink::mavlink_message_t *msg, mavlink::common::msg::ATTITUDE_QUATERNION &att_q)
 	{
-		ROS_INFO_COND_NAMED(!has_att_quat, "imu", "IMU: Attitude quaternion IMU detected!");
+		RCUTILS_LOG_INFO_EXPRESSION_NAMED(!has_att_quat, "imu", "IMU: Attitude quaternion IMU detected!");
 		has_att_quat = true;
 
 		/** Orientation on the NED-aicraft frame:
@@ -367,7 +368,7 @@ private:
 	 */
 	void handle_highres_imu(const mavlink::mavlink_message_t *msg, mavlink::common::msg::HIGHRES_IMU &imu_hr)
 	{
-		ROS_INFO_COND_NAMED(!has_hr_imu, "imu", "IMU: High resolution IMU detected!");
+		RCUTILS_LOG_INFO_EXPRESSION_NAMED(!has_hr_imu, "imu", "IMU: High resolution IMU detected!");
 		has_hr_imu = true;
 
 		auto header = m_uas->synchronized_header(frame_id, imu_hr.time_usec);
@@ -406,12 +407,12 @@ private:
 		 */
 		// [static_pressure_available]
 		if (imu_hr.fields_updated & (1 << 9)) {
-			auto static_pressure_msg = boost::make_shared<sensor_msgs::FluidPressure>();
+			auto static_pressure_msg = std::make_shared<sensor_msgs::msg::FluidPressure>();
 
 			static_pressure_msg->header = header;
 			static_pressure_msg->fluid_pressure = imu_hr.abs_pressure;
 
-			static_press_pub.publish(static_pressure_msg);
+			static_press_pub->publish(*static_pressure_msg);
 		}
 		// [static_pressure_available]
 
@@ -420,12 +421,12 @@ private:
 		 */
 		// [differential_pressure_available]
 		if (imu_hr.fields_updated & (1 << 10)) {
-			auto differential_pressure_msg = boost::make_shared<sensor_msgs::FluidPressure>();
+			auto differential_pressure_msg = std::make_shared<sensor_msgs::msg::FluidPressure>();
 
 			differential_pressure_msg->header = header;
 			differential_pressure_msg->fluid_pressure = imu_hr.diff_pressure;
 
-			diff_press_pub.publish(differential_pressure_msg);
+			diff_press_pub->publish(*differential_pressure_msg);
 		}
 		// [differential_pressure_available]
 
@@ -434,12 +435,12 @@ private:
 		 */
 		// [temperature_available]
 		if (imu_hr.fields_updated & (1 << 12)) {
-			auto temp_msg = boost::make_shared<sensor_msgs::Temperature>();
+			auto temp_msg = std::make_shared<sensor_msgs::msg::Temperature>();
 
 			temp_msg->header = header;
 			temp_msg->temperature = imu_hr.temperature;
 
-			temp_imu_pub.publish(temp_msg);
+			temp_imu_pub->publish(*temp_msg);
 		}
 		// [temperature_available]
 	}
@@ -452,13 +453,13 @@ private:
 	 */
 	void handle_raw_imu(const mavlink::mavlink_message_t *msg, mavlink::common::msg::RAW_IMU &imu_raw)
 	{
-		ROS_INFO_COND_NAMED(!has_raw_imu, "imu", "IMU: Raw IMU message used.");
+		RCUTILS_LOG_INFO_EXPRESSION_NAMED(!has_raw_imu, "imu", "IMU: Raw IMU message used.");
 		has_raw_imu = true;
 
 		if (has_hr_imu || has_scaled_imu)
 			return;
 
-		auto imu_msg = boost::make_shared<sensor_msgs::Imu>();
+		auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
 		auto header = m_uas->synchronized_header(frame_id, imu_raw.time_usec);
 
 		/** @note APM send SCALED_IMU data as RAW_IMU
@@ -479,8 +480,8 @@ private:
 		publish_imu_data_raw(header, gyro_flu, accel_flu, accel_frd);
 
 		if (!m_uas->is_ardupilotmega()) {
-			ROS_WARN_THROTTLE_NAMED(60, "imu", "IMU: linear acceleration on RAW_IMU known on APM only.");
-			ROS_WARN_THROTTLE_NAMED(60, "imu", "IMU: ~imu/data_raw stores unscaled raw acceleration report.");
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(, 60, "imu", "IMU: linear acceleration on RAW_IMU known on APM only.");
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(, 60, "imu", "IMU: ~imu/data_raw stores unscaled raw acceleration report.");
 			linear_accel_vec_flu.setZero();
 			linear_accel_vec_frd.setZero();
 		}
@@ -507,10 +508,10 @@ private:
 		if (has_hr_imu)
 			return;
 
-		ROS_INFO_COND_NAMED(!has_scaled_imu, "imu", "IMU: Scaled IMU message used.");
+		RCUTILS_LOG_INFO_EXPRESSION_NAMED(!has_scaled_imu, "imu", "IMU: Scaled IMU message used.");
 		has_scaled_imu = true;
 
-		auto imu_msg = boost::make_shared<sensor_msgs::Imu>();
+		auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
 		auto header = m_uas->synchronized_header(frame_id, imu_raw.time_boot_ms);
 
 		auto gyro_flu = ftf::transform_frame_aircraft_baselink<Eigen::Vector3d>(
@@ -542,20 +543,20 @@ private:
 
 		auto header = m_uas->synchronized_header(frame_id, press.time_boot_ms);
 
-		auto temp_msg = boost::make_shared<sensor_msgs::Temperature>();
+		auto temp_msg = std::make_shared<sensor_msgs::msg::Temperature>();
 		temp_msg->header = header;
 		temp_msg->temperature = press.temperature / 100.0;
-		temp_baro_pub.publish(temp_msg);
+		temp_baro_pub->publish(*temp_msg);
 
-		auto static_pressure_msg = boost::make_shared<sensor_msgs::FluidPressure>();
+		auto static_pressure_msg = std::make_shared<sensor_msgs::msg::FluidPressure>();
 		static_pressure_msg->header = header;
 		static_pressure_msg->fluid_pressure = press.press_abs * 100.0;
-		static_press_pub.publish(static_pressure_msg);
+		static_press_pub->publish(*static_pressure_msg);
 
-		auto differential_pressure_msg = boost::make_shared<sensor_msgs::FluidPressure>();
+		auto differential_pressure_msg = std::make_shared<sensor_msgs::msg::FluidPressure>();
 		differential_pressure_msg->header = header;
 		differential_pressure_msg->fluid_pressure = press.press_diff * 100.0;
-		diff_press_pub.publish(differential_pressure_msg);
+		diff_press_pub->publish(*differential_pressure_msg);
 	}
 
 	// Checks for connection and overrides variable values
@@ -569,5 +570,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::IMUPlugin, mavros::plugin::PluginBase)

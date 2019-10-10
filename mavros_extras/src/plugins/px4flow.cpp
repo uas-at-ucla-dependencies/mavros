@@ -18,9 +18,9 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/OpticalFlowRad.h>
-#include <sensor_msgs/Temperature.h>
-#include <sensor_msgs/Range.h>
+#include <mavros_msgs/msg/OpticalFlowRad.hpp>
+#include <sensor_msgs/msg/Temperature.hpp>
+#include <sensor_msgs/msg/Range.hpp>
 
 namespace mavros {
 namespace extra_plugins{

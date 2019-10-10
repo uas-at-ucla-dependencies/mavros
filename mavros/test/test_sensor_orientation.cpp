@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <mavros/utils.h>
 #include <mavros/frame_tf.h>
 #include <mavconn/mavlink_dialect.h>

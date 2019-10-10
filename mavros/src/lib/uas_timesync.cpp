@@ -23,13 +23,13 @@ using namespace mavros;
 
 /* -*- time syncronise functions -*- */
 
-static inline ros::Time ros_time_from_ns(const uint64_t stamp_ns) {
-	return ros::Time(
+static inline rclcpp::Time ros_time_from_ns(const uint64_t stamp_ns) {
+	return rclcpp::Time(
 		stamp_ns / 1000000000UL,		// t_sec
 		stamp_ns % 1000000000UL);		// t_nsec
 }
 
-ros::Time UAS::synchronise_stamp(uint32_t time_boot_ms) {
+rclcpp::Time UAS::synchronise_stamp(uint32_t time_boot_ms) {
 	// copy offset from atomic var
 	uint64_t offset_ns = time_offset;
 
@@ -38,10 +38,10 @@ ros::Time UAS::synchronise_stamp(uint32_t time_boot_ms) {
 		return ros_time_from_ns(stamp_ns);
 	}
 	else
-		return ros::Time::now();
+		return clock->now();
 }
 
-ros::Time UAS::synchronise_stamp(uint64_t time_usec) {
+rclcpp::Time UAS::synchronise_stamp(uint64_t time_usec) {
 	uint64_t offset_ns = time_offset;
 
 	if (offset_ns > 0 || tsync_mode == timesync_mode::PASSTHROUGH) {
@@ -49,6 +49,6 @@ ros::Time UAS::synchronise_stamp(uint64_t time_usec) {
 		return ros_time_from_ns(stamp_ns);
 	}
 	else
-		return ros::Time::now();
+		return clock->now();
 }
 

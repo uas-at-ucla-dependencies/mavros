@@ -15,9 +15,9 @@
  */
 
 #include <mavros/mavros_plugin.h>
-#include <mavros_msgs/Trajectory.h>
-#include <mavros_msgs/PositionTarget.h>
-#include <nav_msgs/Path.h>
+#include <mavros_msgs/msg/Trajectory.hpp>
+#include <mavros_msgs/msg/PositionTarget.hpp>
+#include <nav_msgs/msg/Path.hpp>
 
 namespace mavros {
 namespace extra_plugins {

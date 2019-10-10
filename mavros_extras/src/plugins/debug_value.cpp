@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/DebugValue.h>
+#include <mavros_msgs/msg/DebugValue.hpp>
 
 namespace mavros {
 namespace extra_plugins {

@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>mavros_extras</name>
   <version>0.32.2</version>
   <description>
@@ -16,7 +17,7 @@
   <url type="repository">https://github.com/mavlink/mavros.git</url>
   <url type="bugtracker">https://github.com/mavlink/mavros/issues</url>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
   <build_depend>cmake_modules</build_depend>
   <depend>mavros</depend>
@@ -29,8 +30,10 @@
   <depend>urdf</depend>
   <depend>tf</depend>
   <depend>tf2_eigen</depend>
+  <depend>eigen_conversions</depend>
 
   <export>
+    <build_type>ament_cmake</build_type>
     <mavros plugin="${prefix}/mavros_plugins.xml" />
     <rosdoc config="rosdoc.yaml" />
   </export>

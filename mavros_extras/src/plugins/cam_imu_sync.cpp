@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/CamIMUStamp.h>
+#include <mavros_msgs/msg/CamIMUStamp.hpp>
 
 namespace mavros {
 namespace extra_plugins{

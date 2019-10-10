@@ -14,7 +14,7 @@
 #pragma once
 
 #include <algorithm>
-#include <mavros_msgs/Mavlink.h>
+#include <mavros_msgs/msg/mavlink.hpp>
 #include <mavconn/mavlink_dialect.h>
 
 namespace mavros_msgs {
@@ -47,7 +47,7 @@ using ::mavlink::mavlink_message_t;
  * @param[out] mmsg	mavlink_message_t struct
  * @return true if success
  */
-inline bool convert(const mavros_msgs::Mavlink &rmsg, mavlink_message_t &mmsg)
+inline bool convert(const mavros_msgs::msg::Mavlink &rmsg, mavlink_message_t &mmsg)
 {
 	if (rmsg.payload64.size() > sizeof(mmsg.payload64) / sizeof(mmsg.payload64[0])) {
 		return false;
@@ -85,7 +85,7 @@ inline bool convert(const mavros_msgs::Mavlink &rmsg, mavlink_message_t &mmsg)
  * @param[in]  framing_status  framing parse result (OK, BAD_CRC or BAD_SIGNATURE)
  * @return true, this convertion can't fail
  */
-inline bool convert(const mavlink_message_t &mmsg, mavros_msgs::Mavlink &rmsg, uint8_t framing_status = mavros_msgs::Mavlink::FRAMING_OK)
+inline bool convert(const mavlink_message_t &mmsg, mavros_msgs::msg::Mavlink &rmsg, uint8_t framing_status = mavros_msgs::msg::Mavlink::FRAMING_OK)
 {
 	const size_t payload64_len = (mmsg.len + 7) / 8;
 
@@ -105,11 +105,11 @@ inline bool convert(const mavlink_message_t &mmsg, mavros_msgs::Mavlink &rmsg, u
 	rmsg.msgid = mmsg.msgid;
 	rmsg.checksum = mmsg.checksum;
 	// [[[end]]] (checksum: 4f0a50d2fcd7eb8823aea3e0806cd698)
-	rmsg.payload64 = std::move(mavros_msgs::Mavlink::_payload64_type(mmsg.payload64, mmsg.payload64 + payload64_len));
+	rmsg.payload64 = std::move(mavros_msgs::msg::Mavlink::_payload64_type(mmsg.payload64, mmsg.payload64 + payload64_len));
 
 	// copy signature block only if message is signed
 	if (mmsg.incompat_flags & MAVLINK_IFLAG_SIGNED)
-		rmsg.signature = std::move(mavros_msgs::Mavlink::_signature_type(mmsg.signature, mmsg.signature + sizeof(mmsg.signature)));
+		rmsg.signature = std::move(mavros_msgs::msg::Mavlink::_signature_type(mmsg.signature, mmsg.signature + sizeof(mmsg.signature)));
 	else
 		rmsg.signature.clear();
 

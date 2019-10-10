@@ -11,12 +11,12 @@
  * https://github.com/mavlink/mavros/tree/master/LICENSE.md
  */
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <ros/console.h>
 
 #include <urdf/model.h>
-#include <mavros_msgs/RCOut.h>
-#include <sensor_msgs/JointState.h>
+#include <mavros_msgs/msg/RCOut.hpp>
+#include <sensor_msgs/msg/JointState.hpp>
 
 class ServoDescription {
 public:

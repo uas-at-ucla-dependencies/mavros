@@ -18,8 +18,8 @@
 #pragma once
 
 #include <array>
-#include <ros/ros.h>
-#include <pluginlib/class_loader.h>
+#include <rclcpp/rclcpp.hpp>
+#include <pluginlib/class_loader.hpp>
 #include <mavconn/interface.h>
 #include <mavros/mavros_plugin.h>
 #include <mavros/mavlink_diag.h>
@@ -31,26 +31,29 @@ namespace mavros {
  *
  * This class implement mavros_node
  */
-class MavRos
+class MavRos : public rclcpp::Node
 {
 public:
-	MavRos();
+	RCLCPP_SMART_PTR_DEFINITIONS(MavRos)
+
+	static rclcpp::Logger logger;
+
+	MavRos(const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions());
 	~MavRos() {};
 
 	void spin();
 
 private:
-	ros::NodeHandle mavlink_nh;
 	// fcu_link stored in mav_uas
 	mavconn::MAVConnInterface::Ptr gcs_link;
 	bool gcs_quiet_mode;
-	ros::Time last_message_received_from_gcs;
-	ros::Duration conn_timeout;
+	rclcpp::Clock::SharedPtr clock;
+	rclcpp::Time last_message_received_from_gcs;
+	rclcpp::Duration conn_timeout;
 
-	ros::Publisher mavlink_pub;
-	ros::Subscriber mavlink_sub;
+	rclcpp::Publisher<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_pub;
+	rclcpp::Subscription<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_sub;
 
-	diagnostic_updater::Updater gcs_diag_updater;
 	MavlinkDiag fcu_link_diag;
 	MavlinkDiag gcs_link_diag;
 
@@ -66,13 +69,13 @@ private:
 	//! fcu link -> ros
 	void mavlink_pub_cb(const mavlink::mavlink_message_t *mmsg, const mavconn::Framing framing);
 	//! ros -> fcu link
-	void mavlink_sub_cb(const mavros_msgs::Mavlink::ConstPtr &rmsg);
+	void mavlink_sub_cb(const mavros_msgs::msg::Mavlink::UniquePtr rmsg);
 
 	//! message router
 	void plugin_route_cb(const mavlink::mavlink_message_t *mmsg, const mavconn::Framing framing);
 
 	//! load plugin
-	void add_plugin(std::string &pl_name, ros::V_string &blacklist, ros::V_string &whitelist);
+	void add_plugin(std::string &pl_name, std::vector<std::string> &blacklist, std::vector<std::string> &whitelist);
 
 	//! start mavlink app on USB
 	void startup_px4_usb_quirk();

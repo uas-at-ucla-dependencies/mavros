@@ -24,15 +24,15 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
-#include <diagnostic_updater/diagnostic_updater.h>
+#include <diagnostic_updater/diagnostic_updater.hpp>
 #include <mavconn/interface.h>
 #include <mavros/utils.h>
 #include <mavros/frame_tf.h>
 
 #include <GeographicLib/Geoid.hpp>
 
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/NavSatFix.h>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
 
 namespace mavros {
 /**
@@ -76,8 +76,10 @@ public:
 	using MAV_STATE = mavlink::common::MAV_STATE;
 	using timesync_mode = utils::timesync_mode;
 
-	UAS();
+	UAS(rclcpp::Node *node);
 	~UAS() {};
+
+	rclcpp::Node *mavros_node;
 
 	/**
 	 * @brief MAVLink FCU device conection
@@ -174,52 +176,52 @@ public:
 	/**
 	 * @brief Store IMU data [ENU]
 	 */
-	void update_attitude_imu_enu(sensor_msgs::Imu::Ptr &imu);
+	void update_attitude_imu_enu(sensor_msgs::msg::Imu::SharedPtr &imu);
 
 	/**
 	 * @brief Store IMU data [NED]
 	 */
-	void update_attitude_imu_ned(sensor_msgs::Imu::Ptr &imu);
+	void update_attitude_imu_ned(sensor_msgs::msg::Imu::SharedPtr &imu);
 
 	/**
 	 * @brief Get IMU data [ENU]
 	 */
-	sensor_msgs::Imu::Ptr get_attitude_imu_enu();
+	sensor_msgs::msg::Imu::SharedPtr get_attitude_imu_enu();
 
 	/**
 	 * @brief Get IMU data [NED]
 	 */
-	sensor_msgs::Imu::Ptr get_attitude_imu_ned();
+	sensor_msgs::msg::Imu::SharedPtr get_attitude_imu_ned();
 
 	/**
 	 * @brief Get Attitude orientation quaternion
 	 * @return orientation quaternion [ENU]
 	 */
-	geometry_msgs::Quaternion get_attitude_orientation_enu();
+	geometry_msgs::msg::Quaternion get_attitude_orientation_enu();
 
 	/**
 	 * @brief Get Attitude orientation quaternion
 	 * @return orientation quaternion [NED]
 	 */
-	geometry_msgs::Quaternion get_attitude_orientation_ned();
+	geometry_msgs::msg::Quaternion get_attitude_orientation_ned();
 
 	/**
 	 * @brief Get angular velocity from IMU data
 	 * @return vector3 [ENU]
 	 */
-	geometry_msgs::Vector3 get_attitude_angular_velocity_enu();
+	geometry_msgs::msg::Vector3 get_attitude_angular_velocity_enu();
 
 	/**
 	 * @brief Get angular velocity from IMU data
 	 * @return vector3 [NED]
 	 */
-	geometry_msgs::Vector3 get_attitude_angular_velocity_ned();
+	geometry_msgs::msg::Vector3 get_attitude_angular_velocity_ned();
 
 
 	/* -*- GPS data -*- */
 
 	//! Store GPS RAW data
-	void update_gps_fix_epts(sensor_msgs::NavSatFix::Ptr &fix,
+	void update_gps_fix_epts(sensor_msgs::msg::NavSatFix::SharedPtr &fix,
 			float eph, float epv,
 			int fix_type, int satellites_visible);
 
@@ -227,7 +229,7 @@ public:
 	void get_gps_epts(float &eph, float &epv, int &fix_type, int &satellites_visible);
 
 	//! Retunrs last GPS RAW message
-	sensor_msgs::NavSatFix::Ptr get_gps_fix();
+	sensor_msgs::msg::NavSatFix::SharedPtr get_gps_fix();
 
 	/* -*- GograpticLib utils -*- */
 
@@ -309,8 +311,8 @@ public:
 	 *
 	 * @return FCU time if it is known else current wall time.
 	 */
-	ros::Time synchronise_stamp(uint32_t time_boot_ms);
-	ros::Time synchronise_stamp(uint64_t time_usec);
+	rclcpp::Time synchronise_stamp(uint32_t time_boot_ms);
+	rclcpp::Time synchronise_stamp(uint64_t time_usec);
 
 	/**
 	 * @brief Create message header from time_boot_ms or time_usec stamps and frame_id.
@@ -322,8 +324,8 @@ public:
 	 * @return Header with syncronized stamp and frame id
 	 */
 	template<typename T>
-	inline std_msgs::Header synchronized_header(const std::string &frame_id, const T time_stamp) {
-		std_msgs::Header out;
+	inline std_msgs::msg::Header synchronized_header(const std::string &frame_id, const T time_stamp) {
+		std_msgs::msg::Header out;
 		out.frame_id = frame_id;
 		out.stamp = synchronise_stamp(time_stamp);
 		return out;
@@ -397,6 +399,7 @@ public:
 private:
 	std::recursive_mutex mutex;
 
+	rclcpp::Clock::SharedPtr clock;
 	std::atomic<uint8_t> type;
 	std::atomic<uint8_t> autopilot;
 	std::atomic<uint8_t> base_mode;
@@ -407,10 +410,10 @@ private:
 	std::atomic<bool> connected;
 	std::vector<ConnectionCb> connection_cb_vec;
 
-	sensor_msgs::Imu::Ptr imu_enu_data;
-	sensor_msgs::Imu::Ptr imu_ned_data;
+	sensor_msgs::msg::Imu::SharedPtr imu_enu_data;
+	sensor_msgs::msg::Imu::SharedPtr imu_ned_data;
 
-	sensor_msgs::NavSatFix::Ptr gps_fix;
+	sensor_msgs::msg::NavSatFix::SharedPtr gps_fix;
 	float gps_eph;
 	float gps_epv;
 	int gps_fix_type;

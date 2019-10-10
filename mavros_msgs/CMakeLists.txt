@@ -1,13 +1,19 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(mavros_msgs)
 
-find_package(catkin REQUIRED COMPONENTS geographic_msgs geometry_msgs message_generation sensor_msgs std_msgs)
+include(GNUInstallDirs)
+
+find_package(ament_cmake REQUIRED)
+find_package(geographic_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 include_directories(include)
 
-add_message_files(
-  DIRECTORY msg
-  FILES
+set(msg_FILES
   ADSBVehicle.msg
   ActuatorControl.msg
   Altitude.msg
@@ -47,7 +53,7 @@ add_message_files(
   Thrust.msg
   TimesyncStatus.msg
   Trajectory.msg
-  VFR_HUD.msg
+  VfrHud.msg
   VehicleInfo.msg
   Vibration.msg
   Waypoint.msg
@@ -55,10 +61,9 @@ add_message_files(
   WaypointReached.msg
   WheelOdomStamped.msg
 )
+list(TRANSFORM msg_FILES PREPEND msg/)
 
-add_service_files(
-  DIRECTORY srv
-  FILES
+set(srv_FILES
   CommandBool.srv
   CommandHome.srv
   CommandInt.srv
@@ -95,6 +100,7 @@ add_service_files(
   WaypointPush.srv
   WaypointSetCurrent.srv
 )
+list(TRANSFORM srv_FILES PREPEND srv/)
 
 # add_action_files(
 #   DIRECTORY action
@@ -103,12 +109,16 @@ add_service_files(
 #   Action2.action
 # )
 
-generate_messages(DEPENDENCIES geographic_msgs geometry_msgs sensor_msgs std_msgs)
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_FILES} ${srv_FILES}
+  DEPENDENCIES geographic_msgs geometry_msgs sensor_msgs std_msgs builtin_interfaces)
 
-catkin_package(
-  INCLUDE_DIRS include
-  CATKIN_DEPENDS geographic_msgs geometry_msgs message_runtime sensor_msgs std_msgs)
+ament_export_dependencies(std_msgs)
+ament_export_dependencies(rosidl_default_runtime)
+ament_export_include_directories(include)
+
+ament_package()
 
 install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
   FILES_MATCHING PATTERN "*.h")

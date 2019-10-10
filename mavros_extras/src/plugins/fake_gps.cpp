@@ -22,8 +22,8 @@
 #include <GeographicLib/Geocentric.hpp>
 #include <GeographicLib/Geoid.hpp>
 
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/msg/PoseStamped.hpp>
+#include <geometry_msgs/msg/TransformStamped.hpp>
 
 namespace mavros {
 namespace extra_plugins {

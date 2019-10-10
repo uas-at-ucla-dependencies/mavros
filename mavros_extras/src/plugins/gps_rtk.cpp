@@ -15,7 +15,7 @@
  */
 
 #include <mavros/mavros_plugin.h>
-#include <mavros_msgs/RTCM.h>
+#include <mavros_msgs/msg/RTCM.hpp>
 #include <algorithm>
 
 namespace mavros {

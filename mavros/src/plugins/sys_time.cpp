@@ -16,9 +16,9 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <sensor_msgs/TimeReference.h>
-#include <std_msgs/Duration.h>
-#include <mavros_msgs/TimesyncStatus.h>
+#include <sensor_msgs/msg/time_reference.hpp>
+#include <builtin_interfaces/msg/duration.hpp>
+#include <mavros_msgs/msg/timesync_status.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -50,7 +50,7 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mutex);
 
-		ros::Time curtime = ros::Time::now();
+		rclcpp::Time curtime = rclcpp::Time::now();
 		count_ = 0;
 		rtt_sum = 0;
 
@@ -84,7 +84,7 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mutex);
 
-		ros::Time curtime = ros::Time::now();
+		rclcpp::Time curtime = rclcpp::Time::now();
 		int curseq = count_;
 		int events = curseq - seq_nums_[hist_indx_];
 		double window = (curtime - times_[hist_indx_]).toSec();
@@ -116,7 +116,7 @@ public:
 
 private:
 	int count_;
-	std::vector<ros::Time> times_;
+	std::vector<rclcpp::Time> times_;
 	std::vector<int> seq_nums_;
 	int hist_indx_;
 	std::mutex mutex;
@@ -214,16 +214,16 @@ public:
 		// Set timesync mode
 		auto ts_mode = utils::timesync_mode_from_str(ts_mode_str);
 		m_uas->set_timesync_mode(ts_mode);
-		ROS_INFO_STREAM_NAMED("time", "TM: Timesync mode: " << utils::to_string(ts_mode));
+		RCUTILS_LOG_INFO_NAMED("time", "TM: Timesync mode: " << utils::to_string(ts_mode));
 
-		time_ref_pub = nh.advertise<sensor_msgs::TimeReference>("time_reference", 10);
+		time_ref_pub = nh->create_publisher<sensor_msgs::msg::TimeReference>("time_reference", 10);
 
-		timesync_status_pub = nh.advertise<mavros_msgs::TimesyncStatus>("timesync_status", 10);
+		timesync_status_pub = nh->create_publisher<mavros_msgs::msg::TimesyncStatus>("timesync_status", 10);
 
 		// timer for sending system time messages
 		if (!conn_system_time.isZero()) {
 			sys_time_timer = nh.createTimer(conn_system_time,
-						&SystemTimePlugin::sys_time_cb, this);
+						std::bind(&SystemTimePlugin, this, std::placeholders::_1));
 			sys_time_timer.start();
 		}
 
@@ -233,7 +233,7 @@ public:
 			UAS_DIAG(m_uas).add(dt_diag);
 
 			timesync_timer = nh.createTimer(conn_timesync,
-						&SystemTimePlugin::timesync_cb, this);
+						std::bind(&SystemTimePlugin, this, std::placeholders::_1));
 			timesync_timer.start();
 		}
 	}
@@ -247,12 +247,12 @@ public:
 	}
 
 private:
-	ros::NodeHandle nh;
-	ros::Publisher time_ref_pub;
-	ros::Publisher timesync_status_pub;
+	rclcpp::Node::SharedPtr nh;
+	rclcpp::Publisher<>::SharedPtr time_ref_pub;
+	rclcpp::Publisher<>::SharedPtr timesync_status_pub;
 
-	ros::Timer sys_time_timer;
-	ros::Timer timesync_timer;
+	rclcpp::Timer sys_time_timer;
+	rclcpp::Timer timesync_timer;
 
 	TimeSyncStatus dt_diag;
 
@@ -289,25 +289,25 @@ private:
 
 		if (fcu_time_valid) {
 			// continious publish for ntpd
-			auto time_unix = boost::make_shared<sensor_msgs::TimeReference>();
-			ros::Time time_ref(
+			auto time_unix = std::make_shared<sensor_msgs::msg::TimeReference>();
+			rclcpp::Time time_ref(
 						mtime.time_unix_usec / 1000000,		// t_sec
 						(mtime.time_unix_usec % 1000000) * 1000);	// t_nsec
 
-			time_unix->header.stamp = ros::Time::now();
+			time_unix->header.stamp = rclcpp::Time::now();
 			time_unix->time_ref = time_ref;
 			time_unix->source = time_ref_source;
 
 			time_ref_pub.publish(time_unix);
 		}
 		else {
-			ROS_WARN_THROTTLE_NAMED(60, "time", "TM: Wrong FCU time.");
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(,60, "time", "TM: Wrong FCU time.");
 		}
 	}
 
 	void handle_timesync(const mavlink::mavlink_message_t *msg, mavlink::common::msg::TIMESYNC &tsync)
 	{
-		uint64_t now_ns = ros::Time::now().toNSec();
+		uint64_t now_ns = rclcpp::Time::now().toNSec();
 
 		if (tsync.tc1 == 0) {
 			send_timesync_msg(now_ns, tsync.ts1);
@@ -320,10 +320,10 @@ private:
 		}
 	}
 
-	void sys_time_cb(const ros::TimerEvent &event)
+	void sys_time_cb(const rclcpp::TimerEvent &event)
 	{
 		// For filesystem only
-		uint64_t time_unix_usec = ros::Time::now().toNSec() / 1000;	// nano -> micro
+		uint64_t time_unix_usec = rclcpp::Time::now().toNSec() / 1000;	// nano -> micro
 
 		mavlink::common::msg::SYSTEM_TIME mtime {};
 		mtime.time_unix_usec = time_unix_usec;
@@ -331,14 +331,14 @@ private:
 		UAS_FCU(m_uas)->send_message_ignore_drop(mtime);
 	}
 
-	void timesync_cb(const ros::TimerEvent &event)
+	void timesync_cb(const rclcpp::TimerEvent &event)
 	{
 		auto ts_mode = m_uas->get_timesync_mode();
 		if (ts_mode == TSM::MAVLINK) {
-			send_timesync_msg(0, ros::Time::now().toNSec());
+			send_timesync_msg(0, rclcpp::Time::now().toNSec());
 		} else if (ts_mode == TSM::ONBOARD) {
 			// Calculate offset between CLOCK_REALTIME (ros::WallTime) and CLOCK_MONOTONIC
-			uint64_t realtime_now_ns = ros::Time::now().toNSec();
+			uint64_t realtime_now_ns = rclcpp::Time::now().toNSec();
 			uint64_t monotonic_now_ns = get_monotonic_now();
 
 			add_timesync_observation(realtime_now_ns - monotonic_now_ns, realtime_now_ns, monotonic_now_ns);
@@ -356,7 +356,7 @@ private:
 
 	void add_timesync_observation(int64_t offset_ns, uint64_t local_time_ns, uint64_t remote_time_ns)
 	{
-		uint64_t now_ns = ros::Time::now().toNSec();
+		uint64_t now_ns = rclcpp::Time::now().toNSec();
 
 		// Calculate the round trip time (RTT) it took the timesync packet to bounce back to us from remote system
 		uint64_t rtt_ns = now_ns - local_time_ns;
@@ -372,7 +372,7 @@ private:
 				// We reset the filter if we received consecutive samples which violate our present estimate.
 				// This is most likely due to a time jump on the offboard system.
 				if (high_deviation_count > max_cons_high_deviation) {
-					ROS_ERROR_NAMED("time", "TM : Time jump detected. Resetting time synchroniser.");
+					RCUTILS_LOG_ERROR_NAMED("time", "TM : Time jump detected. Resetting time synchroniser.");
 
 					// Reset the filter
 					reset_filter();
@@ -415,7 +415,7 @@ private:
 
 			if (high_rtt_count > max_cons_high_rtt) {
 				// Issue a warning to the user if the RTT is constantly high
-				ROS_WARN_NAMED("time", "TM : RTT too high for timesync: %0.2f ms.", rtt_ns / 1000000.0);
+				RCUTILS_LOG_WARN_NAMED("time", "TM : RTT too high for timesync: %0.2f ms.", rtt_ns / 1000000.0);
 
 				// Reset counter
 				high_rtt_count = 0;
@@ -423,9 +423,9 @@ private:
 		}
 
 		// Publish timesync status
-		auto timesync_status = boost::make_shared<mavros_msgs::TimesyncStatus>();
+		auto timesync_status = std::make_shared<mavros_msgs::msg::TimesyncStatus>();
 
-		timesync_status->header.stamp = ros::Time::now();
+		timesync_status->header.stamp = rclcpp::Time::now();
 		timesync_status->remote_timestamp_ns = remote_time_ns;
 		timesync_status->observed_offset_ns = offset_ns;
 		timesync_status->estimated_offset_ns = time_offset;
@@ -485,5 +485,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::SystemTimePlugin, mavros::plugin::PluginBase)

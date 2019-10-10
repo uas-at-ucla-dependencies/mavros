@@ -18,7 +18,7 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <sensor_msgs/Range.h>
+#include <sensor_msgs/msg/Range.hpp>
 
 namespace mavros {
 namespace extra_plugins {

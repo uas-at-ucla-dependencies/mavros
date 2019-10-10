@@ -21,7 +21,13 @@
 using namespace mavros;
 using utils::enum_value;
 
-UAS::UAS() :
+UAS::UAS(rclcpp::Node *node) :
+	mavros_node(node),
+	diag_updater(node, 0.5),
+	clock(node->get_clock()),
+	tf2_buffer(node->get_clock()),
+	tf2_broadcaster(node),
+	tf2_static_broadcaster(node),
 	tf2_listener(tf2_buffer, true),
 	type(enum_value(MAV_TYPE::GENERIC)),
 	autopilot(enum_value(MAV_AUTOPILOT::GENERIC)),
@@ -46,9 +52,9 @@ UAS::UAS() :
 	}
 	catch (const std::exception &e) {
 		// catch exception and shutdown node
-		ROS_FATAL_STREAM("UAS: GeographicLib exception: " << e.what() <<
-				" | Run install_geographiclib_dataset.sh script in order to install Geoid Model dataset!");
-		ros::shutdown();
+		RCUTILS_LOG_ERROR_NAMED("MavRos", "UAS: GeographicLib exception: %s"
+				" | Run install_geographiclib_dataset.sh script in order to install Geoid Model dataset!", e.what());
+		rclcpp::shutdown();
 	}
 
 	// send static transform from "local_origin" (ENU) to "local_origin_ned" (NED)
@@ -110,77 +116,77 @@ void UAS::update_capabilities(bool known, uint64_t caps)
 
 /* -*- IMU data -*- */
 
-void UAS::update_attitude_imu_enu(sensor_msgs::Imu::Ptr &imu)
+void UAS::update_attitude_imu_enu(sensor_msgs::msg::Imu::SharedPtr &imu)
 {
 	lock_guard lock(mutex);
 	imu_enu_data = imu;
 }
 
-void UAS::update_attitude_imu_ned(sensor_msgs::Imu::Ptr &imu)
+void UAS::update_attitude_imu_ned(sensor_msgs::msg::Imu::SharedPtr &imu)
 {
 	lock_guard lock(mutex);
 	imu_ned_data = imu;
 }
 
-sensor_msgs::Imu::Ptr UAS::get_attitude_imu_enu()
+sensor_msgs::msg::Imu::SharedPtr UAS::get_attitude_imu_enu()
 {
 	lock_guard lock(mutex);
 	return imu_enu_data;
 }
 
-sensor_msgs::Imu::Ptr UAS::get_attitude_imu_ned()
+sensor_msgs::msg::Imu::SharedPtr UAS::get_attitude_imu_ned()
 {
 	lock_guard lock(mutex);
 	return imu_ned_data;
 }
 
-geometry_msgs::Quaternion UAS::get_attitude_orientation_enu()
+geometry_msgs::msg::Quaternion UAS::get_attitude_orientation_enu()
 {
 	lock_guard lock(mutex);
 	if (imu_enu_data)
 		return imu_enu_data->orientation;
 	else {
 		// fallback - return identity
-		geometry_msgs::Quaternion q;
+		geometry_msgs::msg::Quaternion q;
 		q.w = 1.0; q.x = q.y = q.z = 0.0;
 		return q;
 	}
 }
 
-geometry_msgs::Quaternion UAS::get_attitude_orientation_ned()
+geometry_msgs::msg::Quaternion UAS::get_attitude_orientation_ned()
 {
 	lock_guard lock(mutex);
 	if (imu_ned_data)
 		return imu_ned_data->orientation;
 	else {
 		// fallback - return identity
-		geometry_msgs::Quaternion q;
+		geometry_msgs::msg::Quaternion q;
 		q.w = 1.0; q.x = q.y = q.z = 0.0;
 		return q;
 	}
 }
 
-geometry_msgs::Vector3 UAS::get_attitude_angular_velocity_enu()
+geometry_msgs::msg::Vector3 UAS::get_attitude_angular_velocity_enu()
 {
 	lock_guard lock(mutex);
 	if (imu_enu_data)
 		return imu_enu_data->angular_velocity;
 	else {
 		// fallback
-		geometry_msgs::Vector3 v;
+		geometry_msgs::msg::Vector3 v;
 		v.x = v.y = v.z = 0.0;
 		return v;
 	}
 }
 
-geometry_msgs::Vector3 UAS::get_attitude_angular_velocity_ned()
+geometry_msgs::msg::Vector3 UAS::get_attitude_angular_velocity_ned()
 {
 	lock_guard lock(mutex);
 	if (imu_ned_data)
 		return imu_ned_data->angular_velocity;
 	else {
 		// fallback
-		geometry_msgs::Vector3 v;
+		geometry_msgs::msg::Vector3 v;
 		v.x = v.y = v.z = 0.0;
 		return v;
 	}
@@ -189,7 +195,7 @@ geometry_msgs::Vector3 UAS::get_attitude_angular_velocity_ned()
 
 /* -*- GPS data -*- */
 
-void UAS::update_gps_fix_epts(sensor_msgs::NavSatFix::Ptr &fix,
+void UAS::update_gps_fix_epts(sensor_msgs::msg::NavSatFix::SharedPtr &fix,
 	float eph, float epv,
 	int fix_type, int satellites_visible)
 {
@@ -214,7 +220,7 @@ void UAS::get_gps_epts(float &eph, float &epv, int &fix_type, int &satellites_vi
 }
 
 //! Retunrs last GPS RAW message
-sensor_msgs::NavSatFix::Ptr UAS::get_gps_fix()
+sensor_msgs::msg::NavSatFix::SharedPtr UAS::get_gps_fix()
 {
 	lock_guard lock(mutex);
 	return gps_fix;
@@ -225,9 +231,9 @@ sensor_msgs::NavSatFix::Ptr UAS::get_gps_fix()
 //! Publishes static transform
 void UAS::publish_static_transform(const std::string &frame_id, const std::string &child_id, const Eigen::Affine3d &tr)
 {
-	geometry_msgs::TransformStamped static_transformStamped;
+	geometry_msgs::msg::TransformStamped static_transformStamped;
 
-	static_transformStamped.header.stamp = ros::Time::now();
+	static_transformStamped.header.stamp = clock->now();
 	static_transformStamped.header.frame_id = frame_id;
 	static_transformStamped.child_frame_id = child_id;
 	tf::transformEigenToMsg(tr, static_transformStamped.transform);

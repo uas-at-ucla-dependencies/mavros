@@ -27,8 +27,7 @@ namespace std_plugins {
  */
 class DummyPlugin : public plugin::PluginBase {
 public:
-	DummyPlugin() : PluginBase(),
-		nh("~")
+	DummyPlugin() : PluginBase()
 	{ }
 
 	/**
@@ -37,8 +36,9 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		nh = uas_.mavros_node;
 
-		ROS_INFO_NAMED("dummy", "Dummy::initialize");
+		RCUTILS_LOG_INFO_NAMED("dummy", "Dummy::initialize");
 	}
 
 	/**
@@ -61,27 +61,27 @@ public:
 	}
 
 private:
-	ros::NodeHandle nh;
+	rclcpp::Node* nh;
 
 	void handle_heartbeat(const mavlink::mavlink_message_t *msg, mavlink::common::msg::HEARTBEAT &hb) {
-		ROS_INFO_STREAM_NAMED("dummy", "Dummy::handle_heartbeat: " << hb.to_yaml());
+		RCUTILS_LOG_INFO_NAMED("dummy", "Dummy::handle_heartbeat: %s", hb.to_yaml().c_str());
 	}
 
 	void handle_sys_status(const mavlink::mavlink_message_t *msg, mavlink::common::msg::SYS_STATUS &st) {
-		ROS_INFO_STREAM_NAMED("dummy", "Dummy::handle_sys_status: " << st.to_yaml());
+		RCUTILS_LOG_INFO_NAMED("dummy", "Dummy::handle_sys_status: %s", st.to_yaml().c_str());
 	}
 
 	void handle_statustext(const mavlink::mavlink_message_t *msg, mavlink::common::msg::STATUSTEXT &st) {
-		ROS_INFO_STREAM_NAMED("dummy", "Dummy::handle_statustext: " << st.to_yaml());
+		RCUTILS_LOG_INFO_NAMED("dummy", "Dummy::handle_statustext: %s", st.to_yaml().c_str());
 	}
 
 	void handle_statustext_raw(const mavlink::mavlink_message_t *msg, const mavconn::Framing f) {
-		ROS_INFO_NAMED("dummy", "Dummy::handle_statustext_raw(%p, %d) from %u.%u", msg, utils::enum_value(f), msg->sysid, msg->compid);
+		RCUTILS_LOG_INFO_NAMED("dummy", "Dummy::handle_statustext_raw(%p, %d) from %u.%u", msg, utils::enum_value(f), msg->sysid, msg->compid);
 	}
 };
 
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::DummyPlugin, mavros::plugin::PluginBase)

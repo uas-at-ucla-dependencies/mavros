@@ -23,15 +23,15 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <mavros_msgs/Thrust.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <mavros_msgs/msg/thrust.hpp>
 
 namespace mavros {
 namespace std_plugins {
 
-using SyncPoseThrustPolicy = message_filters::sync_policies::ApproximateTime<geometry_msgs::PoseStamped, mavros_msgs::Thrust>;
-using SyncTwistThrustPolicy = message_filters::sync_policies::ApproximateTime<geometry_msgs::TwistStamped, mavros_msgs::Thrust>;
+using SyncPoseThrustPolicy = message_filters::sync_policies::ApproximateTime<geometry_msgs::msg::PoseStamped, mavros_msgs::msg::Thrust>;
+using SyncTwistThrustPolicy = message_filters::sync_policies::ApproximateTime<geometry_msgs::msg::TwistStamped, mavros_msgs::msg::Thrust>;
 using SyncPoseThrust = message_filters::Synchronizer<SyncPoseThrustPolicy>;
 using SyncTwistThrust = message_filters::Synchronizer<SyncTwistThrustPolicy>;
 
@@ -69,11 +69,11 @@ public:
 		th_sub.subscribe(sp_nh, "thrust", 1);
 
 		if (tf_listen) {
-			ROS_INFO_STREAM_NAMED("attitude",
+			RCUTILS_LOG_INFO_NAMED("attitude",
 						"Listen to desired attitude transform "
 						<< tf_frame_id << " -> " << tf_child_frame_id);
 
-			tf2_start<mavros_msgs::Thrust>("AttitudeSpTFSync", th_sub, &SetpointAttitudePlugin::transform_cb);
+			tf2_start<mavros_msgs::msg::Thrust>("AttitudeSpTFSync", th_sub, &SetpointAttitudePlugin::transform_cb);
 		}
 		else if (use_quaternion) {
 			/**
@@ -86,12 +86,12 @@ public:
 			 * by using an adaptative algorithm <http://wiki.ros.org/message_filters/ApproximateTime>
 			 */
 			sync_pose.reset(new SyncPoseThrust(SyncPoseThrustPolicy(10), pose_sub, th_sub));
-			sync_pose->registerCallback(boost::bind(&SetpointAttitudePlugin::attitude_pose_cb, this, _1, _2));
+			sync_pose->registerCallback(std::bind(std::bind(&SetpointAttitudePlugin, this, std::placeholders::_1), _1, _2));
 		}
 		else {
 			twist_sub.subscribe(sp_nh, "cmd_vel", 1);
 			sync_twist.reset(new SyncTwistThrust(SyncTwistThrustPolicy(10), twist_sub, th_sub));
-			sync_twist->registerCallback(boost::bind(&SetpointAttitudePlugin::attitude_twist_cb, this, _1, _2));
+			sync_twist->registerCallback(std::bind(std::bind(&SetpointAttitudePlugin, this, std::placeholders::_1), _1, _2));
 		}
 	}
 
@@ -103,11 +103,11 @@ public:
 private:
 	friend class SetAttitudeTargetMixin;
 	friend class TF2ListenerMixin;
-	ros::NodeHandle sp_nh;
+	rclcpp::Node::SharedPtr sp_nh;
 
-	message_filters::Subscriber<mavros_msgs::Thrust> th_sub;
-	message_filters::Subscriber<geometry_msgs::PoseStamped> pose_sub;
-	message_filters::Subscriber<geometry_msgs::TwistStamped> twist_sub;
+	message_filters::Subscriber<mavros_msgs::msg::Thrust> th_sub;
+	message_filters::Subscriber<geometry_msgs::msg::PoseStamped> pose_sub;
+	message_filters::Subscriber<geometry_msgs::msg::TwistStamped> twist_sub;
 
 	std::unique_ptr<SyncPoseThrust> sync_pose;
 	std::unique_ptr<SyncTwistThrust> sync_twist;
@@ -130,19 +130,19 @@ private:
 	inline bool is_normalized(float thrust){
 		if (reverse_thrust) {
 			if (thrust < -1.0) {
-				ROS_WARN_NAMED("attitude", "Not normalized reversed thrust! Thd(%f) < Min(%f)", thrust, -1.0);
+				RCUTILS_LOG_WARN_NAMED("attitude", "Not normalized reversed thrust! Thd(%f) < Min(%f)", thrust, -1.0);
 				return false;
 			}
 		}
 		else {
 			if (thrust < 0.0) {
-				ROS_WARN_NAMED("attitude", "Not normalized thrust! Thd(%f) < Min(%f)", thrust, 0.0);
+				RCUTILS_LOG_WARN_NAMED("attitude", "Not normalized thrust! Thd(%f) < Min(%f)", thrust, 0.0);
 				return false;
 			}
 		}
 
 		if (thrust > 1.0) {
-			ROS_WARN_NAMED("attitude", "Not normalized thrust! Thd(%f) > Max(%f)", thrust, 1.0);
+			RCUTILS_LOG_WARN_NAMED("attitude", "Not normalized thrust! Thd(%f) > Max(%f)", thrust, 1.0);
 			return false;
 		}
 		return true;
@@ -153,7 +153,7 @@ private:
 	/**
 	 * @brief Send attitude setpoint and thrust to FCU attitude controller
 	 */
-	void send_attitude_quaternion(const ros::Time &stamp, const Eigen::Affine3d &tr, const float thrust)
+	void send_attitude_quaternion(const rclcpp::Time &stamp, const Eigen::Affine3d &tr, const float thrust)
 	{
 		/**
 		 * @note RPY, also bits numbering started from 1 in docs
@@ -174,7 +174,7 @@ private:
 	/**
 	 * @brief Send angular velocity setpoint and thrust to FCU attitude controller
 	 */
-	void send_attitude_ang_velocity(const ros::Time &stamp, const Eigen::Vector3d &ang_vel, const float thrust)
+	void send_attitude_ang_velocity(const rclcpp::Time &stamp, const Eigen::Vector3d &ang_vel, const float thrust)
 	{
 		/**
 		 * @note Q, also bits noumbering started from 1 in docs
@@ -192,14 +192,14 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void transform_cb(const geometry_msgs::TransformStamped &transform, const mavros_msgs::Thrust::ConstPtr &thrust_msg) {
+	void transform_cb(const geometry_msgs::msg::TransformStamped &transform, const mavros_msgs::msg::Thrust::ConstPtr &thrust_msg) {
 		Eigen::Affine3d tr;
 		tf::transformMsgToEigen(transform.transform, tr);
 
 		send_attitude_quaternion(transform.header.stamp, tr, thrust_msg->thrust);
 	}
 
-	void attitude_pose_cb(const geometry_msgs::PoseStamped::ConstPtr &pose_msg, const mavros_msgs::Thrust::ConstPtr &thrust_msg) {
+	void attitude_pose_cb(const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg, const mavros_msgs::msg::Thrust::ConstPtr &thrust_msg) {
 		Eigen::Affine3d tr;
 		tf::poseMsgToEigen(pose_msg->pose, tr);
 
@@ -207,7 +207,7 @@ private:
 			send_attitude_quaternion(pose_msg->header.stamp, tr, thrust_msg->thrust);
 	}
 
-	void attitude_twist_cb(const geometry_msgs::TwistStamped::ConstPtr &req, const mavros_msgs::Thrust::ConstPtr &thrust_msg) {
+	void attitude_twist_cb(const geometry_msgs::msg::TwistStamped::ConstPtr &req, const mavros_msgs::msg::Thrust::ConstPtr &thrust_msg) {
 		Eigen::Vector3d ang_vel;
 		tf::vectorMsgToEigen(req->twist.angular, ang_vel);
 
@@ -219,5 +219,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::SetpointAttitudePlugin, mavros::plugin::PluginBase)

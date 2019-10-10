@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/OnboardComputerStatus.h>
+#include <mavros_msgs/msg/OnboardComputerStatus.hpp>
 
 namespace mavros {
 namespace extra_plugins {

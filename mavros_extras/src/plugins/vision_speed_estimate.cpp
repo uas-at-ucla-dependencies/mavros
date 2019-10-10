@@ -17,8 +17,8 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <geometry_msgs/TwistStamped.h>
-#include <geometry_msgs/TwistWithCovarianceStamped.h>
+#include <geometry_msgs/msg/TwistStamped.hpp>
+#include <geometry_msgs/msg/TwistWithCovarianceStamped.hpp>
 
 #include <geometry_msgs/Vector3Stamped.h>
 

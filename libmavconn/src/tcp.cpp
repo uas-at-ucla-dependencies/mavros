@@ -120,7 +120,8 @@ void MAVConnTCPClient::client_connected(size_t server_channel)
 			server_channel, conn_id, to_string_ss(server_ep).c_str());
 
 	// start recv
-	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_recv, shared_from_this()));
+	boost::asio::post(socket.get_executor(),
+		std::bind(&MAVConnTCPClient::do_recv, shared_from_this()));
 }
 
 MAVConnTCPClient::~MAVConnTCPClient()
@@ -166,7 +167,8 @@ void MAVConnTCPClient::send_bytes(const uint8_t *bytes, size_t length)
 
 		tx_q.emplace_back(bytes, length);
 	}
-	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+	boost::asio::post(socket.get_executor(),
+		std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
 }
 
 void MAVConnTCPClient::send_message(const mavlink_message_t *message)
@@ -188,7 +190,8 @@ void MAVConnTCPClient::send_message(const mavlink_message_t *message)
 
 		tx_q.emplace_back(message);
 	}
-	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+	boost::asio::post(socket.get_executor(),
+		std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
 }
 
 void MAVConnTCPClient::send_message(const mavlink::Message &message, const uint8_t source_compid)
@@ -208,7 +211,8 @@ void MAVConnTCPClient::send_message(const mavlink::Message &message, const uint8
 
 		tx_q.emplace_back(message, get_status_p(), sys_id, source_compid);
 	}
-	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+	boost::asio::post(socket.get_executor(),
+		std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
 }
 
 void MAVConnTCPClient::do_recv()

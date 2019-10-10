@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/ManualControl.h>
+#include <mavros_msgs/msg/manual_control.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -33,8 +33,8 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		control_pub = manual_control_nh.advertise<mavros_msgs::ManualControl>("control", 10);
-		send_sub = manual_control_nh.subscribe("send", 1, &ManualControlPlugin::send_cb, this);
+		control_pub = manual_control_nh->create_publisher<mavros_msgs::msg::ManualControl>("control", 10);
+		send_sub = manual_control_nh->create_subscription("send", 1, std::bind(&ManualControlPlugin, this, std::placeholders::_1));
 	}
 
 	Subscriptions get_subscriptions() {
@@ -44,18 +44,18 @@ public:
 	}
 
 private:
-	ros::NodeHandle manual_control_nh;
+	rclcpp::Node::SharedPtr manual_control_nh;
 
-	ros::Publisher control_pub;
-	ros::Subscriber send_sub;
+	rclcpp::Publisher<>::SharedPtr control_pub;
+	rclcpp::Subscription<>::SharedPtr send_sub;
 
 	/* -*- rx handlers -*- */
 
 	void handle_manual_control(const mavlink::mavlink_message_t *msg, mavlink::common::msg::MANUAL_CONTROL &manual_control)
 	{
-		auto manual_control_msg = boost::make_shared<mavros_msgs::ManualControl>();
+		auto manual_control_msg = std::make_shared<mavros_msgs::msg::ManualControl>();
 
-		manual_control_msg->header.stamp = ros::Time::now();
+		manual_control_msg->header.stamp = rclcpp::Time::now();
 		manual_control_msg->x = (manual_control.x / 1000.0);
 		manual_control_msg->y = (manual_control.y / 1000.0);
 		manual_control_msg->z = (manual_control.z / 1000.0);
@@ -67,7 +67,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void send_cb(const mavros_msgs::ManualControl::ConstPtr req)
+	void send_cb(const mavros_msgs::msg::ManualControl::ConstPtr req)
 	{
 		mavlink::common::msg::MANUAL_CONTROL msg;
 		msg.target = m_uas->get_tgt_system();
@@ -84,5 +84,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::ManualControlPlugin, mavros::plugin::PluginBase)

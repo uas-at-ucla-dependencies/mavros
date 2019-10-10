@@ -22,25 +22,25 @@
 #include <array>
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
-#include <ros/assert.h>
+#include <rclcpp/logging.hpp>
 
 // for Covariance types
-#include <sensor_msgs/Imu.h>
-#include <geometry_msgs/Point.h>
-#include <geometry_msgs/Vector3.h>
-#include <geometry_msgs/Quaternion.h>
-#include <geometry_msgs/PoseWithCovariance.h>
+#include <sensor_msgs/msg/imu.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/vector3.hpp>
+#include <geometry_msgs/msg/quaternion.hpp>
+#include <geometry_msgs/msg/pose_with_covariance.hpp>
 
 namespace mavros {
 namespace ftf {
 //! Type matching rosmsg for 3x3 covariance matrix
-using Covariance3d = sensor_msgs::Imu::_angular_velocity_covariance_type;
+using Covariance3d = sensor_msgs::msg::Imu::_angular_velocity_covariance_type;
 
 //! Type matching rosmsg for 6x6 covariance matrix
-using Covariance6d = geometry_msgs::PoseWithCovariance::_covariance_type;
+using Covariance6d = geometry_msgs::msg::PoseWithCovariance::_covariance_type;
 
 //! Type matching rosmsg for 9x9 covariance matrix
-using Covariance9d = boost::array<double, 81>;
+using Covariance9d = std::array<double, 81>;
 
 //! Eigen::Map for Covariance3d
 using EigenMapCovariance3d = Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor> >;
@@ -143,6 +143,8 @@ Eigen::Vector3d transform_static_frame(const Eigen::Vector3d &vec, const Eigen::
 }	// namespace detail
 
 // -*- frame tf -*-
+
+static rclcpp::Logger logger = rclcpp::get_logger("frame_tf");
 
 /**
  * @brief Transform from attitude represented WRT NED frame to attitude
@@ -374,9 +376,11 @@ inline void covariance_urt_to_mavlink(const T &covmap, std::array<float, ARR_SIZ
 {
 	auto m = covmap;
 	std::size_t COV_SIZE = m.rows() * (m.rows() + 1) / 2;
-	ROS_ASSERT_MSG(COV_SIZE == ARR_SIZE,
-				"frame_tf: covariance matrix URT size (%lu) is different from Mavlink msg covariance field size (%lu)",
+	if (COV_SIZE != ARR_SIZE) {
+		RCLCPP_ERROR(logger,
+				"covariance matrix URT size (%lu) is different from Mavlink msg covariance field size (%lu)",
 				COV_SIZE, ARR_SIZE);
+	}
 
 	auto out = covmsg.begin();
 
@@ -394,9 +398,11 @@ template<class T, std::size_t ARR_SIZE>
 inline void mavlink_urt_to_covariance_matrix(const std::array<float, ARR_SIZE> &covmsg, T &covmat)
 {
 	std::size_t COV_SIZE = covmat.rows() * (covmat.rows() + 1) / 2;
-	ROS_ASSERT_MSG(COV_SIZE == ARR_SIZE,
-				"frame_tf: covariance matrix URT size (%lu) is different from Mavlink msg covariance field size (%lu)",
+	if (COV_SIZE != ARR_SIZE) {
+		RCLCPP_ERROR(logger,
+				"covariance matrix URT size (%lu) is different from Mavlink msg covariance field size (%lu)",
 				COV_SIZE, ARR_SIZE);
+	}
 
 	auto in = covmsg.begin();
 
@@ -419,16 +425,16 @@ inline void mavlink_urt_to_covariance_matrix(const std::array<float, ARR_SIZE> &
 // make_to_eigen("Vector3d", "Vector3", "xyz")
 // make_to_eigen("Quaterniond", "Quaternion", "wxyz")
 // ]]]
-//! @brief Helper to convert common ROS geometry_msgs::Point to Eigen::Vector3d
-inline Eigen::Vector3d to_eigen(const geometry_msgs::Point r) {
+//! @brief Helper to convert common ROS geometry_msgs::msg::Point to Eigen::Vector3d
+inline Eigen::Vector3d to_eigen(const geometry_msgs::msg::Point r) {
 	return Eigen::Vector3d(r.x, r.y, r.z);
 }
-//! @brief Helper to convert common ROS geometry_msgs::Vector3 to Eigen::Vector3d
-inline Eigen::Vector3d to_eigen(const geometry_msgs::Vector3 r) {
+//! @brief Helper to convert common ROS geometry_msgs::msg::Vector3 to Eigen::Vector3d
+inline Eigen::Vector3d to_eigen(const geometry_msgs::msg::Vector3 r) {
 	return Eigen::Vector3d(r.x, r.y, r.z);
 }
-//! @brief Helper to convert common ROS geometry_msgs::Quaternion to Eigen::Quaterniond
-inline Eigen::Quaterniond to_eigen(const geometry_msgs::Quaternion r) {
+//! @brief Helper to convert common ROS geometry_msgs::msg::Quaternion to Eigen::Quaterniond
+inline Eigen::Quaterniond to_eigen(const geometry_msgs::msg::Quaternion r) {
 	return Eigen::Quaterniond(r.w, r.x, r.y, r.z);
 }
 // [[[end]]] (checksum: 1b3ada1c4245d4e31dcae9768779b952)

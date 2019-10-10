@@ -19,13 +19,13 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <mavros_msgs/HilControls.h>
-#include <mavros_msgs/HilActuatorControls.h>
-#include <mavros_msgs/HilStateQuaternion.h>
-#include <mavros_msgs/HilGPS.h>
-#include <mavros_msgs/HilSensor.h>
-#include <mavros_msgs/OpticalFlowRad.h>
-#include <mavros_msgs/RCIn.h>
+#include <mavros_msgs/msg/hil_controls.hpp>
+#include <mavros_msgs/msg/hil_actuator_controls.hpp>
+#include <mavros_msgs/msg/hil_state_quaternion.hpp>
+#include <mavros_msgs/msg/hil_gps.hpp>
+#include <mavros_msgs/msg/hil_sensor.hpp>
+#include <mavros_msgs/msg/optical_flow_rad.hpp>
+#include <mavros_msgs/msg/rc_in.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -49,14 +49,14 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		hil_state_quaternion_sub = hil_nh.subscribe("state", 10, &HilPlugin::state_quat_cb, this);
-		hil_gps_sub = hil_nh.subscribe("gps", 10, &HilPlugin::gps_cb, this);
-		hil_sensor_sub = hil_nh.subscribe("imu_ned", 10, &HilPlugin::sensor_cb, this);
-		hil_flow_sub = hil_nh.subscribe("optical_flow", 10, &HilPlugin::optical_flow_cb, this);
-		hil_rcin_sub = hil_nh.subscribe("rc_inputs", 10, &HilPlugin::rcin_raw_cb, this);
+		hil_state_quaternion_sub = hil_nh->create_subscription("state", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
+		hil_gps_sub = hil_nh->create_subscription("gps", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
+		hil_sensor_sub = hil_nh->create_subscription("imu_ned", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
+		hil_flow_sub = hil_nh->create_subscription("optical_flow", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
+		hil_rcin_sub = hil_nh->create_subscription("rc_inputs", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
 
-		hil_controls_pub = hil_nh.advertise<mavros_msgs::HilControls>("controls", 10);
-		hil_actuator_controls_pub = hil_nh.advertise<mavros_msgs::HilActuatorControls>("actuator_controls", 10);
+		hil_controls_pub = hil_nh->create_publisher<mavros_msgs::msg::HilControls>("controls", 10);
+		hil_actuator_controls_pub = hil_nh->create_publisher<mavros_msgs::msg::HilActuatorControls>("actuator_controls", 10);
 	}
 
 	Subscriptions get_subscriptions()
@@ -68,23 +68,23 @@ public:
 	}
 
 private:
-	ros::NodeHandle hil_nh;
+	rclcpp::Node::SharedPtr hil_nh;
 
-	ros::Publisher hil_controls_pub;
-	ros::Publisher hil_actuator_controls_pub;
+	rclcpp::Publisher<>::SharedPtr hil_controls_pub;
+	rclcpp::Publisher<>::SharedPtr hil_actuator_controls_pub;
 
-	ros::Subscriber hil_state_quaternion_sub;
-	ros::Subscriber hil_gps_sub;
-	ros::Subscriber hil_sensor_sub;
-	ros::Subscriber hil_flow_sub;
-	ros::Subscriber hil_rcin_sub;
+	rclcpp::Subscription<>::SharedPtr hil_state_quaternion_sub;
+	rclcpp::Subscription<>::SharedPtr hil_gps_sub;
+	rclcpp::Subscription<>::SharedPtr hil_sensor_sub;
+	rclcpp::Subscription<>::SharedPtr hil_flow_sub;
+	rclcpp::Subscription<>::SharedPtr hil_rcin_sub;
 
 	Eigen::Quaterniond enu_orientation;
 
 	/* -*- rx handlers -*- */
 
 	void handle_hil_controls(const mavlink::mavlink_message_t *msg, mavlink::common::msg::HIL_CONTROLS &hil_controls) {
-		auto hil_controls_msg = boost::make_shared<mavros_msgs::HilControls>();
+		auto hil_controls_msg = std::make_shared<mavros_msgs::msg::HilControls>();
 
 		hil_controls_msg->header.stamp = m_uas->synchronise_stamp(hil_controls.time_usec);
 		// [[[cog:
@@ -109,7 +109,7 @@ private:
 	}
 
 	void handle_hil_actuator_controls(const mavlink::mavlink_message_t *msg, mavlink::common::msg::HIL_ACTUATOR_CONTROLS &hil_actuator_controls) {
-		auto hil_actuator_controls_msg = boost::make_shared<mavros_msgs::HilActuatorControls>();
+		auto hil_actuator_controls_msg = std::make_shared<mavros_msgs::msg::HilActuatorControls>();
 
 		hil_actuator_controls_msg->header.stamp = m_uas->synchronise_stamp(hil_actuator_controls.time_usec);
 		const auto &arr = hil_actuator_controls.controls;
@@ -126,7 +126,7 @@ private:
 	 * @brief Send hil_state_quaternion to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_STATE_QUATERNION
 	 */
-	void state_quat_cb(const mavros_msgs::HilStateQuaternion::ConstPtr &req) {
+	void state_quat_cb(const mavros_msgs::msg::HilStateQuaternion::ConstPtr &req) {
 		mavlink::common::msg::HIL_STATE_QUATERNION state_quat;
 
 		state_quat.time_usec = req->header.stamp.toNSec() / 1000;
@@ -178,7 +178,7 @@ private:
 	 * @brief Send hil_gps to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_GPS
 	 */
-	void gps_cb(const mavros_msgs::HilGPS::ConstPtr &req) {
+	void gps_cb(const mavros_msgs::msg::HilGPS::ConstPtr &req) {
 		mavlink::common::msg::HIL_GPS gps;
 
 		gps.time_usec = req->header.stamp.toNSec() / 1000;
@@ -211,7 +211,7 @@ private:
 	 * @brief Send hil_sensor to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_SENSOR
 	 */
-	void sensor_cb(const mavros_msgs::HilSensor::ConstPtr &req) {
+	void sensor_cb(const mavros_msgs::msg::HilSensor::ConstPtr &req) {
 		mavlink::common::msg::HIL_SENSOR sensor;
 
 		sensor.time_usec = req->header.stamp.toNSec() / 1000;
@@ -257,7 +257,7 @@ private:
 	 * @brief Send simulated optical flow to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_OPTICAL_FLOW
 	 */
-	void optical_flow_cb(const mavros_msgs::OpticalFlowRad::ConstPtr &req) {
+	void optical_flow_cb(const mavros_msgs::msg::OpticalFlowRad::ConstPtr &req) {
 		mavlink::common::msg::HIL_OPTICAL_FLOW of;
 
 		auto int_xy = ftf::transform_frame_aircraft_baselink(
@@ -300,7 +300,7 @@ private:
 	 * @brief Send simulated received RAW values of the RC channels to the FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_RC_INPUTS_RAW
 	 */
-	void rcin_raw_cb(const mavros_msgs::RCIn::ConstPtr &req) {
+	void rcin_raw_cb(const mavros_msgs::msg::RCIn::ConstPtr &req) {
 		mavlink::common::msg::HIL_RC_INPUTS_RAW rcin {};
 
 		constexpr size_t MAX_CHANCNT = 12;
@@ -335,5 +335,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::HilPlugin, mavros::plugin::PluginBase)

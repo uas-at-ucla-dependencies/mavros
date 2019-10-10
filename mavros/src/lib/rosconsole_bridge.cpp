@@ -11,6 +11,6 @@
  * https://github.com/mavlink/mavros/tree/master/LICENSE.md
  */
 
-#include <rosconsole_bridge/bridge.h>
+// #include <rosconsole_bridge/bridge.h>
 
-REGISTER_ROSCONSOLE_BRIDGE;
+// REGISTER_ROSCONSOLE_BRIDGE;

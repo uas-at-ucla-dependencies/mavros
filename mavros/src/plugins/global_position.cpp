@@ -21,17 +21,17 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <GeographicLib/Geocentric.hpp>
 
-#include <std_msgs/Float64.h>
-#include <std_msgs/UInt32.h>
-#include <nav_msgs/Odometry.h>
-#include <sensor_msgs/NavSatFix.h>
-#include <sensor_msgs/NavSatStatus.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <geometry_msgs/TransformStamped.h>
-#include <geographic_msgs/GeoPointStamped.h>
+#include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/u_int32.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <sensor_msgs/msg/nav_sat_status.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geographic_msgs/msg/geo_point_stamped.hpp>
 
-#include <mavros_msgs/HomePosition.h>
+#include <mavros_msgs/msg/home_position.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -73,26 +73,26 @@ public:
 		UAS_DIAG(m_uas).add("GPS", this, &GlobalPositionPlugin::gps_diag_run);
 
 		// gps data
-		raw_fix_pub = gp_nh.advertise<sensor_msgs::NavSatFix>("raw/fix", 10);
-		raw_vel_pub = gp_nh.advertise<geometry_msgs::TwistStamped>("raw/gps_vel", 10);
-		raw_sat_pub = gp_nh.advertise<std_msgs::UInt32>("raw/satellites", 10);
+		raw_fix_pub = gp_nh->create_publisher<sensor_msgs::msg::NavSatFix>("raw/fix", 10);
+		raw_vel_pub = gp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("raw/gps_vel", 10);
+		raw_sat_pub = gp_nh->create_publisher<std_msgs::msg::UInt32>("raw/satellites", 10);
 
 		// fused global position
-		gp_fix_pub = gp_nh.advertise<sensor_msgs::NavSatFix>("global", 10);
-		gp_odom_pub = gp_nh.advertise<nav_msgs::Odometry>("local", 10);
-		gp_rel_alt_pub = gp_nh.advertise<std_msgs::Float64>("rel_alt", 10);
-		gp_hdg_pub = gp_nh.advertise<std_msgs::Float64>("compass_hdg", 10);
+		gp_fix_pub = gp_nh->create_publisher<sensor_msgs::msg::NavSatFix>("global", 10);
+		gp_odom_pub = gp_nh->create_publisher<nav_msgs::msg::Odometry>("local", 10);
+		gp_rel_alt_pub = gp_nh->create_publisher<std_msgs::msg::Float64>("rel_alt", 10);
+		gp_hdg_pub = gp_nh->create_publisher<std_msgs::msg::Float64>("compass_hdg", 10);
 
 		// global origin
-		gp_global_origin_pub = gp_nh.advertise<geographic_msgs::GeoPointStamped>("gp_origin", 10);
-		gp_set_global_origin_sub = gp_nh.subscribe("set_gp_origin", 10, &GlobalPositionPlugin::set_gp_origin_cb, this);
+		gp_global_origin_pub = gp_nh->create_publisher<geographic_msgs::msg::GeoPointStamped>("gp_origin", 10);
+		gp_set_global_origin_sub = gp_nh->create_subscription("set_gp_origin", 10, std::bind(&GlobalPositionPlugin, this, std::placeholders::_1));
 
 		// home position subscriber to set "map" origin
 		// TODO use UAS
-		hp_sub = gp_nh.subscribe("home", 10, &GlobalPositionPlugin::home_position_cb, this);
+		hp_sub = gp_nh->create_subscription("home", 10, std::bind(&GlobalPositionPlugin, this, std::placeholders::_1));
 
 		// offset from local position to the global origin ("earth")
-		gp_global_offset_pub = gp_nh.advertise<geometry_msgs::PoseStamped>("gp_lp_offset", 10);
+		gp_global_offset_pub = gp_nh->create_publisher<geometry_msgs::msg::PoseStamped>("gp_lp_offset", 10);
 	}
 
 	Subscriptions get_subscriptions()
@@ -107,20 +107,20 @@ public:
 	}
 
 private:
-	ros::NodeHandle gp_nh;
+	rclcpp::Node::SharedPtr gp_nh;
 
-	ros::Publisher raw_fix_pub;
-	ros::Publisher raw_vel_pub;
-	ros::Publisher raw_sat_pub;
-	ros::Publisher gp_odom_pub;
-	ros::Publisher gp_fix_pub;
-	ros::Publisher gp_hdg_pub;
-	ros::Publisher gp_rel_alt_pub;
-	ros::Publisher gp_global_origin_pub;
-	ros::Publisher gp_global_offset_pub;
+	rclcpp::Publisher<>::SharedPtr raw_fix_pub;
+	rclcpp::Publisher<>::SharedPtr raw_vel_pub;
+	rclcpp::Publisher<>::SharedPtr raw_sat_pub;
+	rclcpp::Publisher<>::SharedPtr gp_odom_pub;
+	rclcpp::Publisher<>::SharedPtr gp_fix_pub;
+	rclcpp::Publisher<>::SharedPtr gp_hdg_pub;
+	rclcpp::Publisher<>::SharedPtr gp_rel_alt_pub;
+	rclcpp::Publisher<>::SharedPtr gp_global_origin_pub;
+	rclcpp::Publisher<>::SharedPtr gp_global_offset_pub;
 
-	ros::Subscriber gp_set_global_origin_sub;
-	ros::Subscriber hp_sub;
+	rclcpp::Subscription<>::SharedPtr gp_set_global_origin_sub;
+	rclcpp::Subscription<>::SharedPtr hp_sub;
 
 	std::string frame_id;		//!< origin frame for topic headers
 	std::string child_frame_id;	//!< body-fixed frame for topic headers
@@ -140,34 +140,34 @@ private:
 	Eigen::Vector3d local_ecef {};	//!< local ECEF coordinates on map frame [m]
 
 	template<typename MsgT>
-	inline void fill_lla(MsgT &msg, sensor_msgs::NavSatFix::Ptr fix)
+	inline void fill_lla(MsgT &msg, sensor_msgs::msg::NavSatFix::Ptr fix)
 	{
 		fix->latitude = msg.lat / 1E7;		// deg
 		fix->longitude = msg.lon / 1E7;		// deg
 		fix->altitude = msg.alt / 1E3 + m_uas->geoid_to_ellipsoid_height(fix);	// in meters
 	}
 
-	inline void fill_unknown_cov(sensor_msgs::NavSatFix::Ptr fix)
+	inline void fill_unknown_cov(sensor_msgs::msg::NavSatFix::Ptr fix)
 	{
 		fix->position_covariance.fill(0.0);
 		fix->position_covariance[0] = -1.0;
-		fix->position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
+		fix->position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
 	}
 
 	/* -*- message handlers -*- */
 
 	void handle_gps_raw_int(const mavlink::mavlink_message_t *msg, mavlink::common::msg::GPS_RAW_INT &raw_gps)
 	{
-		auto fix = boost::make_shared<sensor_msgs::NavSatFix>();
+		auto fix = std::make_shared<sensor_msgs::msg::NavSatFix>();
 
 		fix->header = m_uas->synchronized_header(child_frame_id, raw_gps.time_usec);
 
-		fix->status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
+		fix->status.service = sensor_msgs::msg::NavSatStatus::SERVICE_GPS;
 		if (raw_gps.fix_type > 2)
-			fix->status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
+			fix->status.status = sensor_msgs::msg::NavSatStatus::STATUS_FIX;
 		else {
-			ROS_WARN_THROTTLE_NAMED(30, "global_position", "GP: No GPS fix");
-			fix->status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(,30, "global_position", "GP: No GPS fix");
+			fix->status.status = sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX;
 		}
 
 		fill_lla(raw_gps, fix);
@@ -181,12 +181,12 @@ private:
 		if (msg->magic == MAVLINK_STX &&
 				raw_gps.h_acc > 0 && raw_gps.v_acc > 0) {
 			gps_cov.diagonal() << std::pow(raw_gps.h_acc / 1E3, 2), std::pow(raw_gps.h_acc / 1E3, 2), std::pow(raw_gps.v_acc / 1E3, 2);
-			fix->position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+			fix->position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
 		}
 		// With mavlink v1.0 approximate accuracies by DOP
 		else if (!std::isnan(eph) && !std::isnan(epv)) {
 			gps_cov.diagonal() << std::pow(eph * gps_uere, 2), std::pow(eph * gps_uere, 2), std::pow(epv * gps_uere, 2);
-			fix->position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
+			fix->position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
 		}
 		else {
 			fill_unknown_cov(fix);
@@ -201,7 +201,7 @@ private:
 			double speed = raw_gps.vel / 1E2;				// m/s
 			double course = angles::from_degrees(raw_gps.cog / 1E2);	// rad
 
-			auto vel = boost::make_shared<geometry_msgs::TwistStamped>();
+			auto vel = std::make_shared<geometry_msgs::msg::TwistStamped>();
 
 			vel->header.stamp = fix->header.stamp;
 			vel->header.frame_id = frame_id;
@@ -214,18 +214,18 @@ private:
 		}
 
 		// publish satellite count
-		auto sat_cnt = boost::make_shared<std_msgs::UInt32>();
+		auto sat_cnt = std::make_shared<std_msgs::msg::UInt32>();
 		sat_cnt->data = raw_gps.satellites_visible;
 		raw_sat_pub.publish(sat_cnt);
 	}
 
 	void handle_gps_global_origin(const mavlink::mavlink_message_t *msg, mavlink::common::msg::GPS_GLOBAL_ORIGIN &glob_orig)
 	{
-		auto g_origin = boost::make_shared<geographic_msgs::GeoPointStamped>();
+		auto g_origin = std::make_shared<geographic_msgs::msg::GeoPointStamped>();
 		// auto header = m_uas->synchronized_header(frame_id, glob_orig.time_boot_ms);	#TODO: requires Mavlink msg update
 
 		g_origin->header.frame_id = tf_global_frame_id;
-		g_origin->header.stamp = ros::Time::now();
+		g_origin->header.stamp = rclcpp::Time::now();
 
 		g_origin->position.latitude = glob_orig.latitude / 1E7;
 		g_origin->position.longitude = glob_orig.longitude / 1E7;
@@ -253,10 +253,10 @@ private:
 
 	void handle_global_position_int(const mavlink::mavlink_message_t *msg, mavlink::common::msg::GLOBAL_POSITION_INT &gpos)
 	{
-		auto odom = boost::make_shared<nav_msgs::Odometry>();
-		auto fix = boost::make_shared<sensor_msgs::NavSatFix>();
-		auto relative_alt = boost::make_shared<std_msgs::Float64>();
-		auto compass_heading = boost::make_shared<std_msgs::Float64>();
+		auto odom = std::make_shared<nav_msgs::msg::Odometry>();
+		auto fix = std::make_shared<sensor_msgs::msg::NavSatFix>();
+		auto relative_alt = std::make_shared<std_msgs::msg::Float64>();
+		auto compass_heading = std::make_shared<std_msgs::msg::Float64>();
 
 		auto header = m_uas->synchronized_header(child_frame_id, gpos.time_boot_ms);
 
@@ -275,8 +275,8 @@ private:
 		}
 		else {
 			// no GPS_RAW_INT -> fix status unknown
-			fix->status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
-			fix->status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
+			fix->status.service = sensor_msgs::msg::NavSatStatus::SERVICE_GPS;
+			fix->status.status = sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX;
 
 			// we don't know covariance
 			fill_unknown_cov(fix);
@@ -337,7 +337,7 @@ private:
 						map_point.x(), map_point.y(), map_point.z());
 
 			// Set the current fix as the "map" origin if it's not set
-			if (!is_map_init && fix->status.status >= sensor_msgs::NavSatStatus::STATUS_FIX) {
+			if (!is_map_init && fix->status.status >= sensor_msgs::msg::NavSatStatus::STATUS_FIX) {
 				map_origin.x() = fix->latitude;
 				map_origin.y() = fix->longitude;
 				map_origin.z() = fix->altitude;
@@ -382,7 +382,7 @@ private:
 
 		// TF
 		if (tf_send) {
-			geometry_msgs::TransformStamped transform;
+			geometry_msgs::msg::TransformStamped transform;
 
 			transform.header.stamp = odom->header.stamp;
 			transform.header.frame_id = tf_frame_id;
@@ -402,7 +402,7 @@ private:
 
 	void handle_lpned_system_global_offset(const mavlink::mavlink_message_t *msg, mavlink::common::msg::LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET &offset)
 	{
-		auto global_offset = boost::make_shared<geometry_msgs::PoseStamped>();
+		auto global_offset = std::make_shared<geometry_msgs::msg::PoseStamped>();
 		global_offset->header = m_uas->synchronized_header(tf_global_frame_id, offset.time_boot_ms);
 
 		auto enu_position = ftf::transform_frame_ned_enu(Eigen::Vector3d(offset.x, offset.y, offset.z));
@@ -417,7 +417,7 @@ private:
 
 		// TF
 		if (tf_send) {
-			geometry_msgs::TransformStamped transform;
+			geometry_msgs::msg::TransformStamped transform;
 
 			transform.header.stamp = global_offset->header.stamp;
 			transform.header.frame_id = tf_global_frame_id;
@@ -468,7 +468,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void home_position_cb(const mavros_msgs::HomePosition::ConstPtr &req)
+	void home_position_cb(const mavros_msgs::msg::HomePosition::ConstPtr &req)
 	{
 		map_origin.x() = req->geo.latitude;
 		map_origin.y() = req->geo.longitude;
@@ -492,7 +492,7 @@ private:
 		is_map_init = true;
 	}
 
-	void set_gp_origin_cb(const geographic_msgs::GeoPointStamped::ConstPtr &req)
+	void set_gp_origin_cb(const geographic_msgs::msg::GeoPointStamped::ConstPtr &req)
 	{
 		mavlink::common::msg::SET_GPS_GLOBAL_ORIGIN gpo;
 
@@ -511,5 +511,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::GlobalPositionPlugin, mavros::plugin::PluginBase)

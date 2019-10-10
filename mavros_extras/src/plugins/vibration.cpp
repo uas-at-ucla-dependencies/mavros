@@ -17,7 +17,7 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <mavros_msgs/Vibration.h>
+#include <mavros_msgs/msg/Vibration.hpp>
 
 namespace mavros {
 namespace extra_plugins {

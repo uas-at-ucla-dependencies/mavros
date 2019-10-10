@@ -1,10 +1,8 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(libmavconn)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+## Find ament_cmake macros and libraries
+find_package(ament_cmake REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 find_package(console_bridge REQUIRED)
@@ -14,20 +12,14 @@ find_package(Boost REQUIRED COMPONENTS system)
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 include(EnableCXX11)
 include(MavrosMavlink)
+include(GNUInstallDirs)
+include(em_expand)
 
 # Fixed in mavlink 2016.7.7
 #-> enum values out of int range
 #list(APPEND IGNORE_DIALECTS "autoquad")
 
-###################################
-## catkin specific configuration ##
-###################################
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES mavconn
-  DEPENDS Boost console_bridge mavlink
-  CFG_EXTRAS libmavconn-extras.cmake
-)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ###########
 ## Build ##
@@ -36,8 +28,6 @@ catkin_package(
 include_directories(
   include
   ${CMAKE_CURRENT_BINARY_DIR}/catkin_generated/include
-  ${Boost_INCLUDE_DIRS}
-  ${mavlink_INCLUDE_DIRS}
   ${console_bridge_INCLUDE_DIRS}
 )
 
@@ -49,8 +39,11 @@ add_library(mavconn
   src/tcp.cpp
   src/udp.cpp
 )
-target_link_libraries(mavconn
-  ${Boost_LIBRARIES}
+target_include_directories(mavconn PUBLIC
+  ${mavlink_INCLUDE_DIRS}
+)
+target_link_libraries(mavconn PUBLIC
+  Boost::system
   ${console_bridge_LIBRARIES}
 )
 
@@ -79,38 +72,41 @@ endif()
 ## Install ##
 #############
 
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
 ## Mark executables and/or libraries for installation
 install(TARGETS mavconn
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 ## Mark cpp header files for installation
 install(DIRECTORY include/mavconn/
-  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/mavconn
-  FILES_MATCHING PATTERN "*.h"
-)
-
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/catkin_generated/include/mavconn/
-  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/mavconn
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mavconn
   FILES_MATCHING PATTERN "*.h"
 )
 
 ## Install cmake files (thanks to cmake_modules package)
 install(DIRECTORY cmake/Modules
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/cmake
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake
+)
+
+##################################
+## ament specific configuration ##
+##################################
+ament_export_include_directories(include)
+ament_export_libraries(mavconn)
+ament_export_dependencies(Boost console_bridge mavlink)
+ament_package(
+  CONFIG_EXTRAS ${CMAKE_SOURCE_DIR}/cmake/libmavconn-extras.cmake.in
 )
 
 #############
 ## Testing ##
 #############
 
-if(CATKIN_ENABLE_TESTING)
-  catkin_add_gtest(mavconn-test test/test_mavconn.cpp)
+if(AMENT_ENABLE_TESTING)
+  find_package(ament_gtest REQUIRED)
+  ament_cmake_gtest(mavconn-test test/test_mavconn.cpp)
   target_link_libraries(mavconn-test mavconn pthread)
 endif()
 

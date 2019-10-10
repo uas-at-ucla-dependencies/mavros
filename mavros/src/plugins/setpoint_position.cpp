@@ -18,10 +18,10 @@
 #include <mavros/setpoint_mixin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
-#include <mavros_msgs/SetMavFrame.h>
-#include <geographic_msgs/GeoPoseStamped.h>
+#include <mavros_msgs/srv/set_mav_frame.hpp>
+#include <geographic_msgs/msg/geo_pose_stamped.hpp>
 
 #include <GeographicLib/Geocentric.hpp>
 
@@ -58,22 +58,22 @@ public:
 		sp_nh.param("tf/rate_limit", tf_rate, 50.0);
 
 		if (tf_listen) {
-			ROS_INFO_STREAM_NAMED("setpoint", "Listen to position setpoint transform "
+			RCUTILS_LOG_INFO_NAMED("setpoint", "Listen to position setpoint transform "
 					<< tf_frame_id << " -> " << tf_child_frame_id);
 			tf2_start("PositionSpTF", &SetpointPositionPlugin::transform_cb);
 		}
 		else {
-			setpoint_sub = sp_nh.subscribe("local", 10, &SetpointPositionPlugin::setpoint_cb, this);
+			setpoint_sub = sp_nh->create_subscription("local", 10, std::bind(&SetpointPositionPlugin, this, std::placeholders::_1));
 			// Subscriber for goal gps
-			setpointg_sub = sp_nh.subscribe("global", 10, &SetpointPositionPlugin::setpointg_cb, this);
+			setpointg_sub = sp_nh->create_subscription("global", 10, std::bind(&SetpointPositionPlugin, this, std::placeholders::_1));
 			// Subscriber for goal gps but will convert it to local coordinates
-			setpointg2l_sub = sp_nh.subscribe("global_to_local", 10, &SetpointPositionPlugin::setpointg2l_cb, this);
+			setpointg2l_sub = sp_nh->create_subscription("global_to_local", 10, &SetpointPositionPlugin::setpointg2l_cb, this);
 			// subscriber for current gps state, mavros/global_position/global.
-			gps_sub = spg_nh.subscribe("global_position/global", 10, &SetpointPositionPlugin::gps_cb, this);
+			gps_sub = spg_nh->create_subscription("global_position/global", 10, std::bind(&SetpointPositionPlugin, this, std::placeholders::_1));
 			// Subscribe for current local ENU pose.
-			local_sub = spg_nh.subscribe("local_position/pose", 10, &SetpointPositionPlugin::local_cb, this);
+			local_sub = spg_nh->create_subscription("local_position/pose", 10, std::bind(&SetpointPositionPlugin, this, std::placeholders::_1));
 		}
-		mav_frame_srv = sp_nh.advertiseService("mav_frame", &SetpointPositionPlugin::set_mav_frame_cb, this);
+		mav_frame_srv = sp_nh->create_service("mav_frame", std::bind(&SetpointPositionPlugin, this, std::placeholders::_1));
 
 		// mav_frame
 		std::string mav_frame_str;
@@ -94,17 +94,17 @@ private:
 	friend class SetPositionTargetGlobalIntMixin;
 	friend class TF2ListenerMixin;
 
-	ros::NodeHandle sp_nh;
-	ros::NodeHandle spg_nh;		//!< to get local position and gps coord which are not under sp_h()
-	ros::Subscriber setpoint_sub;
-	ros::Subscriber setpointg_sub;	//!< Global setpoint
-	ros::Subscriber setpointg2l_sub;//!< Global setpoint converted to local setpoint
-	ros::Subscriber gps_sub;	//!< current GPS
-	ros::Subscriber local_sub;	//!< current local ENU
-	ros::ServiceServer mav_frame_srv;
+	rclcpp::Node::SharedPtr sp_nh;
+	rclcpp::Node::SharedPtr spg_nh;		//!< to get local position and gps coord which are not under sp_h()
+	rclcpp::Subscription<>::SharedPtr setpoint_sub;
+	rclcpp::Subscription<>::SharedPtr setpointg_sub;	//!< Global setpoint
+	rclcpp::Subscription<>::SharedPtr setpointg2l_sub;//!< Global setpoint converted to local setpoint
+	rclcpp::Subscription<>::SharedPtr gps_sub;	//!< current GPS
+	rclcpp::Subscription<>::SharedPtr local_sub;	//!< current local ENU
+	rclcpp::Service<>::SharedPtr mav_frame_srv;
 
 	/* Stores current gps state. */
-	//sensor_msgs::NavSatFix current_gps_msg;
+	//sensor_msgs::msg::NavSatFix current_gps_msg;
 	Eigen::Vector3d current_gps;		//!< geodetic coordinates LLA
 	Eigen::Vector3d current_local_pos;	//!< Current local position in ENU
 	uint32_t old_gps_stamp = 0;		//!< old time gps time stamp in [ms], to check if new gps msg is received
@@ -124,7 +124,7 @@ private:
 	 *
 	 * @warning Send only XYZ, Yaw. ENU frame.
 	 */
-	void send_position_target(const ros::Time &stamp, const Eigen::Affine3d &tr)
+	void send_position_target(const rclcpp::Time &stamp, const Eigen::Affine3d &tr)
 	{
 		using mavlink::common::MAV_FRAME;
 
@@ -165,7 +165,7 @@ private:
 	/* -*- callbacks -*- */
 
 	/* common TF listener moved to mixin */
-	void transform_cb(const geometry_msgs::TransformStamped &transform)
+	void transform_cb(const geometry_msgs::msg::TransformStamped &transform)
 	{
 		Eigen::Affine3d tr;
 		// TODO: later, when tf2 5.12 will be released need to revisit and replace this to
@@ -175,7 +175,7 @@ private:
 		send_position_target(transform.header.stamp, tr);
 	}
 
-	void setpoint_cb(const geometry_msgs::PoseStamped::ConstPtr &req)
+	void setpoint_cb(const geometry_msgs::msg::PoseStamped::ConstPtr &req)
 	{
 		Eigen::Affine3d tr;
 		tf::poseMsgToEigen(req->pose, tr);
@@ -186,7 +186,7 @@ private:
 	/**
 	 * Gets setpoint position setpoint and send SET_POSITION_TARGET_GLOBAL_INT
 	 */
-	void setpointg_cb(const geographic_msgs::GeoPoseStamped::ConstPtr &req)
+	void setpointg_cb(const geographic_msgs::msg::GeoPoseStamped::ConstPtr &req)
 	{
 		using mavlink::common::POSITION_TARGET_TYPEMASK;
 
@@ -218,7 +218,7 @@ private:
 	/**
 	 * Gets gps setpoint, converts it to local ENU, and sends it to FCU
 	 */
-	void setpointg2l_cb(const geographic_msgs::GeoPoseStamped::ConstPtr &req)
+	void setpointg2l_cb(const geographic_msgs::msg::GeoPoseStamped::ConstPtr &req)
 	{
 		/**
 		 * The idea is to convert the change in LLA(goal_gps-current_gps) to change in ENU
@@ -263,14 +263,14 @@ private:
 			send_position_target(req->header.stamp, sp);
 		}
 		else {
-			ROS_WARN_THROTTLE_NAMED(10, "spgp", "SPG: sp not sent.");
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(,10, "spgp", "SPG: sp not sent.");
 		}
 	}
 
 	/**
 	 * Current GPS coordinates
 	 */
-	void gps_cb(const sensor_msgs::NavSatFix::ConstPtr &msg)
+	void gps_cb(const sensor_msgs::msg::NavSatFix::ConstPtr &msg)
 	{
 		current_gps = {msg->latitude, msg->longitude, msg->altitude};
 	}
@@ -278,12 +278,12 @@ private:
 	/**
 	 * current local position in ENU
 	 */
-	void local_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
+	void local_cb(const geometry_msgs::msg::PoseStamped::ConstPtr &msg)
 	{
 		current_local_pos = ftf::to_eigen(msg->pose.position);
 	}
 
-	bool set_mav_frame_cb(mavros_msgs::SetMavFrame::Request &req, mavros_msgs::SetMavFrame::Response &res)
+	bool set_mav_frame_cb(mavros_msgs::msg::SetMavFrame::Request &req, mavros_msgs::msg::SetMavFrame::Response &res)
 	{
 		mav_frame = static_cast<MAV_FRAME>(req.mav_frame);
 		const std::string mav_frame_str = utils::to_string(mav_frame);
@@ -295,5 +295,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::SetpointPositionPlugin, mavros::plugin::PluginBase)

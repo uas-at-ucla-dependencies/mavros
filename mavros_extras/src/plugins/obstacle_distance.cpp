@@ -16,7 +16,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/msg/LaserScan.hpp>
 
 namespace mavros {
 namespace extra_plugins {

@@ -22,7 +22,7 @@
 #include <mavros_msgs/mavlink_convert.h>
 #include <mavconn/mavlink_dialect.h>
 
-#include <ros/console.h>
+#include <rclcpp/rclcpp.hpp>
 
 // OS X compat: missing error codes
 #ifdef __APPLE__

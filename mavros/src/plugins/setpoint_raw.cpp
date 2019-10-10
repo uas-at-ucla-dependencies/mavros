@@ -18,9 +18,9 @@
 #include <mavros/setpoint_mixin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <mavros_msgs/AttitudeTarget.h>
-#include <mavros_msgs/PositionTarget.h>
-#include <mavros_msgs/GlobalPositionTarget.h>
+#include <mavros_msgs/msg/attitude_target.hpp>
+#include <mavros_msgs/msg/position_target.hpp>
+#include <mavros_msgs/msg/global_position_target.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -45,12 +45,12 @@ public:
 
 		bool tf_listen;
 
-		local_sub = sp_nh.subscribe("local", 10, &SetpointRawPlugin::local_cb, this);
-		global_sub = sp_nh.subscribe("global", 10, &SetpointRawPlugin::global_cb, this);
-		attitude_sub = sp_nh.subscribe("attitude", 10, &SetpointRawPlugin::attitude_cb, this);
-		target_local_pub = sp_nh.advertise<mavros_msgs::PositionTarget>("target_local", 10);
-		target_global_pub = sp_nh.advertise<mavros_msgs::GlobalPositionTarget>("target_global", 10);
-		target_attitude_pub = sp_nh.advertise<mavros_msgs::AttitudeTarget>("target_attitude", 10);
+		local_sub = sp_nh->create_subscription("local", 10, std::bind(&SetpointRawPlugin, this, std::placeholders::_1));
+		global_sub = sp_nh->create_subscription("global", 10, std::bind(&SetpointRawPlugin, this, std::placeholders::_1));
+		attitude_sub = sp_nh->create_subscription("attitude", 10, std::bind(&SetpointRawPlugin, this, std::placeholders::_1));
+		target_local_pub = sp_nh->create_publisher<mavros_msgs::msg::PositionTarget>("target_local", 10);
+		target_global_pub = sp_nh->create_publisher<mavros_msgs::msg::GlobalPositionTarget>("target_global", 10);
+		target_attitude_pub = sp_nh->create_publisher<mavros_msgs::msg::AttitudeTarget>("target_attitude", 10);
 	}
 
 	Subscriptions get_subscriptions()
@@ -66,10 +66,10 @@ private:
 	friend class SetPositionTargetLocalNEDMixin;
 	friend class SetPositionTargetGlobalIntMixin;
 	friend class SetAttitudeTargetMixin;
-	ros::NodeHandle sp_nh;
+	rclcpp::Node::SharedPtr sp_nh;
 
-	ros::Subscriber local_sub, global_sub, attitude_sub;
-	ros::Publisher target_local_pub, target_global_pub, target_attitude_pub;
+	rclcpp::Subscription<>::SharedPtr local_sub, global_sub, attitude_sub;
+	rclcpp::Publisher<>::SharedPtr target_local_pub, target_global_pub, target_attitude_pub;
 
 	/* -*- message handlers -*- */
 	void handle_position_target_local_ned(const mavlink::mavlink_message_t *msg, mavlink::common::msg::POSITION_TARGET_LOCAL_NED &tgt)
@@ -86,7 +86,7 @@ private:
 		auto ang_vel_enu = ftf::transform_frame_ned_enu(ang_vel_ned);
 		float yaw_rate = ang_vel_enu.z();
 
-		auto target = boost::make_shared<mavros_msgs::PositionTarget>();
+		auto target = std::make_shared<mavros_msgs::msg::PositionTarget>();
 
 		target->header.stamp = m_uas->synchronise_stamp(tgt.time_boot_ms);
 		target->coordinate_frame = tgt.coordinate_frame;
@@ -113,7 +113,7 @@ private:
 		auto ang_vel_enu = ftf::transform_frame_ned_enu(ang_vel_ned);
 		float yaw_rate = ang_vel_enu.z();
 
-		auto target = boost::make_shared<mavros_msgs::GlobalPositionTarget>();
+		auto target = std::make_shared<mavros_msgs::msg::GlobalPositionTarget>();
 
 		target->header.stamp = m_uas->synchronise_stamp(tgt.time_boot_ms);
 		target->coordinate_frame = tgt.coordinate_frame;
@@ -139,7 +139,7 @@ private:
 
 		auto body_rate = ftf::transform_frame_baselink_aircraft(Eigen::Vector3d(tgt.body_roll_rate, tgt.body_pitch_rate, tgt.body_yaw_rate));
 
-		auto target = boost::make_shared<mavros_msgs::AttitudeTarget>();
+		auto target = std::make_shared<mavros_msgs::msg::AttitudeTarget>();
 
 		target->header.stamp = m_uas->synchronise_stamp(tgt.time_boot_ms);
 		target->type_mask = tgt.type_mask;
@@ -152,7 +152,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void local_cb(const mavros_msgs::PositionTarget::ConstPtr &req)
+	void local_cb(const mavros_msgs::msg::PositionTarget::ConstPtr &req)
 	{
 		Eigen::Vector3d position, velocity, af;
 		float yaw, yaw_rate;
@@ -183,7 +183,7 @@ private:
 					yaw, yaw_rate);
 	}
 
-	void global_cb(const mavros_msgs::GlobalPositionTarget::ConstPtr &req)
+	void global_cb(const mavros_msgs::msg::GlobalPositionTarget::ConstPtr &req)
 	{
 		Eigen::Vector3d velocity, af;
 		float yaw, yaw_rate;
@@ -214,7 +214,7 @@ private:
 					yaw, yaw_rate);
 	}
 
-	void attitude_cb(const mavros_msgs::AttitudeTarget::ConstPtr &req)
+	void attitude_cb(const mavros_msgs::msg::AttitudeTarget::ConstPtr &req)
 	{
 		double thrust_scaling;
 		Eigen::Quaterniond desired_orientation;
@@ -234,7 +234,7 @@ private:
 			return;
 		} else {
 			if (thrust_scaling == 0.0) {
-				ROS_WARN_THROTTLE_NAMED(5, "setpoint_raw", "thrust_scaling parameter is set to zero.");
+				RCUTILS_LOG_WARN_THROTTLE_NAMED(,5, "setpoint_raw", "thrust_scaling parameter is set to zero.");
 			}
 			thrust = std::min(1.0, std::max(0.0, req->thrust * thrust_scaling));
 		}
@@ -262,5 +262,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::SetpointRawPlugin, mavros::plugin::PluginBase)

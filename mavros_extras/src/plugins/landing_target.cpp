@@ -20,9 +20,9 @@
 #include <pluginlib/class_list_macros.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/msg/PoseStamped.hpp>
 #include <geometry_msgs/Vector3Stamped.h>
-#include <mavros_msgs/LandingTarget.h>
+#include <mavros_msgs/msg/LandingTarget.hpp>
 
 namespace mavros {
 namespace extra_plugins {

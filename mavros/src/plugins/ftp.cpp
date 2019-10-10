@@ -19,22 +19,25 @@
 #include <condition_variable>
 #include <mavros/mavros_plugin.h>
 
-#include <std_srvs/Empty.h>
-#include <mavros_msgs/FileEntry.h>
-#include <mavros_msgs/FileList.h>
-#include <mavros_msgs/FileOpen.h>
-#include <mavros_msgs/FileClose.h>
-#include <mavros_msgs/FileRead.h>
-#include <mavros_msgs/FileWrite.h>
-#include <mavros_msgs/FileRemove.h>
-#include <mavros_msgs/FileMakeDir.h>
-#include <mavros_msgs/FileRemoveDir.h>
-#include <mavros_msgs/FileTruncate.h>
-#include <mavros_msgs/FileRename.h>
-#include <mavros_msgs/FileChecksum.h>
+#include <std_srvs/srv/empty.hpp>
+#include <mavros_msgs/msg/file_entry.hpp>
+#include <mavros_msgs/srv/file_list.hpp>
+#include <mavros_msgs/srv/file_open.hpp>
+#include <mavros_msgs/srv/file_close.hpp>
+#include <mavros_msgs/srv/file_read.hpp>
+#include <mavros_msgs/srv/file_write.hpp>
+#include <mavros_msgs/srv/file_remove.hpp>
+#include <mavros_msgs/srv/file_make_dir.hpp>
+#include <mavros_msgs/srv/file_remove_dir.hpp>
+#include <mavros_msgs/srv/file_truncate.hpp>
+#include <mavros_msgs/srv/file_rename.hpp>
+#include <mavros_msgs/srv/file_checksum.hpp>
 
 // enable debugging messages
 //#define FTP_LL_DEBUG
+
+#define ROS_ASSERT(cond) assert(cond)
+#define ROS_ASSERT_MSG(cond, msg) assert(cond && msg)
 
 namespace mavros {
 namespace std_plugins {
@@ -150,7 +153,7 @@ public:
 	{
 #ifdef FTP_LL_DEBUG
 		auto hdr = header();
-		ROS_DEBUG_NAMED("ftp", "FTP:rm: SEQ(%u) SESS(%u) OPCODE(%u) RQOP(%u) SZ(%u) OFF(%u)",
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:rm: SEQ(%u) SESS(%u) OPCODE(%u) RQOP(%u) SZ(%u) OFF(%u)",
 				hdr->seqNumber, hdr->session, hdr->opcode, hdr->req_opcode, hdr->size, hdr->offset);
 #endif
 
@@ -171,7 +174,7 @@ public:
 		hdr->req_opcode = kCmdNone;
 
 #ifdef FTP_LL_DEBUG
-		ROS_DEBUG_NAMED("ftp", "FTP:sm: SEQ(%u) SESS(%u) OPCODE(%u) SZ(%u) OFF(%u)",
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:sm: SEQ(%u) SESS(%u) OPCODE(%u) SZ(%u) OFF(%u)",
 				hdr->seqNumber, hdr->session, hdr->opcode, hdr->size, hdr->offset);
 #endif
 
@@ -197,7 +200,6 @@ public:
 class FTPPlugin : public plugin::PluginBase {
 public:
 	FTPPlugin() : PluginBase(),
-		ftp_nh("~ftp"),
 		op_state(OP::IDLE),
 		last_send_seqnr(0),
 		active_session(0),
@@ -215,23 +217,26 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		ftp_nh = uas_.mavros_node->create_sub_node("~ftp");
 
 		// since C++ generator do not produce field length defs make check explicit.
 		FTPRequest r;
-		ROS_ASSERT(r.payload.size() - sizeof(FTPRequest::PayloadHeader) == r.DATA_MAXSZ);
+		if (!(r.payload.size() - sizeof(FTPRequest::PayloadHeader) == r.DATA_MAXSZ)) {
+			RCUTILS_LOG_FATAL("FTP bad data size");
+		}
 
-		list_srv = ftp_nh.advertiseService("list", &FTPPlugin::list_cb, this);
-		open_srv = ftp_nh.advertiseService("open", &FTPPlugin::open_cb, this);
-		close_srv = ftp_nh.advertiseService("close", &FTPPlugin::close_cb, this);
-		read_srv = ftp_nh.advertiseService("read", &FTPPlugin::read_cb, this);
-		write_srv = ftp_nh.advertiseService("write", &FTPPlugin::write_cb, this);
-		mkdir_srv = ftp_nh.advertiseService("mkdir", &FTPPlugin::mkdir_cb, this);
-		rmdir_srv = ftp_nh.advertiseService("rmdir", &FTPPlugin::rmdir_cb, this);
-		remove_srv = ftp_nh.advertiseService("remove", &FTPPlugin::remove_cb, this);
-		truncate_srv = ftp_nh.advertiseService("truncate", &FTPPlugin::truncate_cb, this);
-		reset_srv = ftp_nh.advertiseService("reset", &FTPPlugin::reset_cb, this);
-		rename_srv = ftp_nh.advertiseService("rename", &FTPPlugin::rename_cb, this);
-		checksum_srv = ftp_nh.advertiseService("checksum", &FTPPlugin::checksum_cb, this);
+		list_srv = ftp_nh->create_service<mavros_msgs::srv::FileList>("list", std::bind(&FTPPlugin::list_cb, this, std::placeholders::_1));
+		open_srv = ftp_nh->create_service<mavros_msgs::srv::FileOpen>("open", std::bind(&FTPPlugin::open_cb, this, std::placeholders::_1));
+		close_srv = ftp_nh->create_service<mavros_msgs::srv::FileClose>("close", std::bind(&FTPPlugin::close_cb, this, std::placeholders::_1));
+		read_srv = ftp_nh->create_service<mavros_msgs::srv::FileRead>("read", std::bind(&FTPPlugin::read_cb, this, std::placeholders::_1));
+		write_srv = ftp_nh->create_service<mavros_msgs::srv::FileWrite>("write", std::bind(&FTPPlugin::write_cb, this, std::placeholders::_1));
+		mkdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileMakeDir>("mkdir", std::bind(&FTPPlugin::mkdir_cb, this, std::placeholders::_1));
+		rmdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemoveDir>("rmdir", std::bind(&FTPPlugin::rmdir_cb, this, std::placeholders::_1));
+		remove_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemove>("remove", std::bind(&FTPPlugin::remove_cb, this, std::placeholders::_1));
+		truncate_srv = ftp_nh->create_service<mavros_msgs::srv::FileTruncate>("truncate", std::bind(&FTPPlugin::truncate_cb, this, std::placeholders::_1));
+		reset_srv = ftp_nh->create_service<std_srvs::srv::Empty>("reset", std::bind(&FTPPlugin::reset_cb, this, std::placeholders::_1));
+		rename_srv = ftp_nh->create_service<mavros_msgs::srv::FileRename>("rename", std::bind(&FTPPlugin::rename_cb, this, std::placeholders::_1));
+		checksum_srv = ftp_nh->create_service<mavros_msgs::srv::FileChecksum>("checksum", std::bind(&FTPPlugin::checksum_cb, this, std::placeholders::_1));
 	}
 
 	Subscriptions get_subscriptions()
@@ -242,19 +247,19 @@ public:
 	}
 
 private:
-	ros::NodeHandle ftp_nh;
-	ros::ServiceServer list_srv;
-	ros::ServiceServer open_srv;
-	ros::ServiceServer close_srv;
-	ros::ServiceServer read_srv;
-	ros::ServiceServer write_srv;
-	ros::ServiceServer mkdir_srv;
-	ros::ServiceServer rmdir_srv;
-	ros::ServiceServer remove_srv;
-	ros::ServiceServer rename_srv;
-	ros::ServiceServer truncate_srv;
-	ros::ServiceServer reset_srv;
-	ros::ServiceServer checksum_srv;
+	rclcpp::Node::SharedPtr ftp_nh;
+	rclcpp::Service<mavros_msgs::srv::FileList>::SharedPtr list_srv;
+	rclcpp::Service<mavros_msgs::srv::FileOpen>::SharedPtr open_srv;
+	rclcpp::Service<mavros_msgs::srv::FileClose>::SharedPtr close_srv;
+	rclcpp::Service<mavros_msgs::srv::FileRead>::SharedPtr read_srv;
+	rclcpp::Service<mavros_msgs::srv::FileWrite>::SharedPtr write_srv;
+	rclcpp::Service<mavros_msgs::srv::FileMakeDir>::SharedPtr mkdir_srv;
+	rclcpp::Service<mavros_msgs::srv::FileRemoveDir>::SharedPtr rmdir_srv;
+	rclcpp::Service<mavros_msgs::srv::FileRemove>::SharedPtr remove_srv;
+	rclcpp::Service<mavros_msgs::srv::FileRename>::SharedPtr rename_srv;
+	rclcpp::Service<mavros_msgs::srv::FileTruncate>::SharedPtr truncate_srv;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr reset_srv;
+	rclcpp::Service<mavros_msgs::srv::FileChecksum>::SharedPtr checksum_srv;
 
 	//! This type used in servicies to store 'data' fileds.
 	typedef std::vector<uint8_t> V_FileData;
@@ -281,7 +286,7 @@ private:
 	// FTP:List
 	uint32_t list_offset;
 	std::string list_path;
-	std::vector<mavros_msgs::FileEntry> list_entries;
+	std::vector<mavros_msgs::msg::FileEntry> list_entries;
 
 	// FTP:Open / FTP:Close
 	std::string open_path;
@@ -321,7 +326,7 @@ private:
 	void handle_file_transfer_protocol(const mavlink::mavlink_message_t *msg, FTPRequest &req)
 	{
 		if (!req.decode_valid(m_uas)) {
-			ROS_DEBUG_NAMED("ftp", "FTP: Wrong System Id, MY %u, TGT %u",
+			RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP: Wrong System Id, MY %u, TGT %u",
 					UAS_FCU(m_uas)->get_system_id(), req.get_target_system_id());
 			return;
 		}
@@ -329,7 +334,7 @@ private:
 		const uint16_t incoming_seqnr = req.header()->seqNumber;
 		const uint16_t expected_seqnr = last_send_seqnr + 1;
 		if (incoming_seqnr != expected_seqnr) {
-			ROS_WARN_NAMED("ftp", "FTP: Lost sync! seqnr: %u != %u",
+			RCUTILS_LOG_WARN_NAMED("ftp", "FTP: Lost sync! seqnr: %u != %u",
 					incoming_seqnr, expected_seqnr);
 			go_idle(true, EILSEQ);
 			return;
@@ -343,7 +348,7 @@ private:
 		else if (req.header()->opcode == FTPRequest::kRspNak)
 			handle_req_nack(req);
 		else {
-			ROS_ERROR_NAMED("ftp", "FTP: Unknown request response: %u", req.header()->opcode);
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Unknown request response: %u", req.header()->opcode);
 			go_idle(true, EBADRQC);
 		}
 	}
@@ -359,7 +364,7 @@ private:
 		case OP::WRITE:		handle_ack_write(req);		break;
 		case OP::CHECKSUM:	handle_ack_checksum(req);	break;
 		default:
-			ROS_ERROR_NAMED("ftp", "FTP: wrong op_state");
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: wrong op_state");
 			go_idle(true, EBADRQC);
 		}
 	}
@@ -398,7 +403,7 @@ private:
 			return;
 		}
 
-		ROS_ERROR_NAMED("ftp", "FTP: NAK: %u Opcode: %u State: %u Errno: %d (%s)",
+		RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: NAK: %u Opcode: %u State: %u Errno: %d (%s)",
 				error_code, hdr->req_opcode, enum_value(prev_op), r_errno, strerror(r_errno));
 		go_idle(true);
 	}
@@ -407,9 +412,9 @@ private:
 	{
 		auto hdr = req.header();
 
-		ROS_DEBUG_NAMED("ftp", "FTP:m: ACK List SZ(%u) OFF(%u)", hdr->size, hdr->offset);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: ACK List SZ(%u) OFF(%u)", hdr->size, hdr->offset);
 		if (hdr->offset != list_offset) {
-			ROS_ERROR_NAMED("ftp", "FTP: Wrong list offset, req %u, ret %u",
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Wrong list offset, req %u, ret %u",
 					list_offset, hdr->offset);
 			go_idle(true, EBADE);
 			return;
@@ -425,12 +430,12 @@ private:
 			size_t slen = strnlen(ptr, bytes_left);
 			if ((ptr[0] == FTPRequest::DIRENT_SKIP && slen > 1) ||
 					(ptr[0] != FTPRequest::DIRENT_SKIP && slen < 2)) {
-				ROS_ERROR_NAMED("ftp", "FTP: Incorrect list entry: %s", ptr);
+				RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Incorrect list entry: %s", ptr);
 				go_idle(true, ERANGE);
 				return;
 			}
 			else if (slen == bytes_left) {
-				ROS_ERROR_NAMED("ftp", "FTP: Missing NULL termination in list entry");
+				RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Missing NULL termination in list entry");
 				go_idle(true, EOVERFLOW);
 				return;
 			}
@@ -443,7 +448,7 @@ private:
 				// do nothing
 			}
 			else {
-				ROS_WARN_NAMED("ftp", "FTP: Unknown list entry: %s", ptr);
+				RCUTILS_LOG_WARN_NAMED("ftp", "FTP: Unknown list entry: %s", ptr);
 			}
 
 			off += slen + 1;
@@ -466,11 +471,11 @@ private:
 	{
 		auto hdr = req.header();
 
-		ROS_DEBUG_NAMED("ftp", "FTP:m: ACK Open OPCODE(%u)", hdr->req_opcode);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: ACK Open OPCODE(%u)", hdr->req_opcode);
 		ROS_ASSERT(hdr->size == sizeof(uint32_t));
 		open_size = *req.data_u32();
 
-		ROS_INFO_NAMED("ftp", "FTP:Open %s: success, session %u, size %zu",
+		RCUTILS_LOG_INFO_NAMED("ftp", "FTP:Open %s: success, session %u, size %zu",
 				open_path.c_str(), hdr->session, open_size);
 		session_file_map.insert(std::make_pair(open_path, hdr->session));
 		go_idle(false);
@@ -480,15 +485,15 @@ private:
 	{
 		auto hdr = req.header();
 
-		ROS_DEBUG_NAMED("ftp", "FTP:m: ACK Read SZ(%u)", hdr->size);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: ACK Read SZ(%u)", hdr->size);
 		if (hdr->session != active_session) {
-			ROS_ERROR_NAMED("ftp", "FTP:Read unexpected session");
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Read unexpected session");
 			go_idle(true, EBADSLT);
 			return;
 		}
 
 		if (hdr->offset != read_offset) {
-			ROS_ERROR_NAMED("ftp", "FTP:Read different offset");
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Read different offset");
 			go_idle(true, EBADE);
 			return;
 		}
@@ -514,15 +519,15 @@ private:
 	{
 		auto hdr = req.header();
 
-		ROS_DEBUG_NAMED("ftp", "FTP:m: ACK Write SZ(%u)", hdr->size);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: ACK Write SZ(%u)", hdr->size);
 		if (hdr->session != active_session) {
-			ROS_ERROR_NAMED("ftp", "FTP:Write unexpected session");
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Write unexpected session");
 			go_idle(true, EBADSLT);
 			return;
 		}
 
 		if (hdr->offset != write_offset) {
-			ROS_ERROR_NAMED("ftp", "FTP:Write different offset");
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Write different offset");
 			go_idle(true, EBADE);
 			return;
 		}
@@ -552,11 +557,11 @@ private:
 	{
 		auto hdr = req.header();
 
-		ROS_DEBUG_NAMED("ftp", "FTP:m: ACK CalcFileCRC32 OPCODE(%u)", hdr->req_opcode);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: ACK CalcFileCRC32 OPCODE(%u)", hdr->req_opcode);
 		ROS_ASSERT(hdr->size == sizeof(uint32_t));
 		checksum_crc32 = *req.data_u32();
 
-		ROS_DEBUG_NAMED("ftp", "FTP:Checksum: success, crc32: 0x%08x", checksum_crc32);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:Checksum: success, crc32: 0x%08x", checksum_crc32);
 		go_idle(false);
 	}
 
@@ -579,9 +584,9 @@ private:
 
 	void send_reset()
 	{
-		ROS_DEBUG_NAMED("ftp", "FTP:m: kCmdResetSessions");
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: kCmdResetSessions");
 		if (!session_file_map.empty()) {
-			ROS_WARN_NAMED("ftp", "FTP: Reset closes %zu sessons",
+			RCUTILS_LOG_WARN_NAMED("ftp", "FTP: Reset closes %zu sessons",
 					session_file_map.size());
 			session_file_map.clear();
 		}
@@ -660,7 +665,7 @@ private:
 
 		std::string paths = os.str();
 		if (paths.size() >= FTPRequest::DATA_MAXSZ) {
-			ROS_ERROR_NAMED("ftp", "FTP: rename file paths is too long: %zu", paths.size());
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: rename file paths is too long: %zu", paths.size());
 			r_errno = ENAMETOOLONG;
 			return false;
 		}
@@ -689,12 +694,12 @@ private:
 
 	void add_dirent(const char *ptr, size_t slen)
 	{
-		mavros_msgs::FileEntry ent;
+		mavros_msgs::srv::FileEntry ent;
 		ent.size = 0;
 
 		if (ptr[0] == FTPRequest::DIRENT_DIR) {
 			ent.name.assign(ptr + 1, slen - 1);
-			ent.type = mavros_msgs::FileEntry::TYPE_DIRECTORY;
+			ent.type = mavros_msgs::srv::FileEntry::TYPE_DIRECTORY;
 
 			ROS_DEBUG_STREAM_NAMED("ftp", "FTP:List Dir: " << ent.name);
 		}
@@ -704,7 +709,7 @@ private:
 
 			auto sep_it = std::find(name_size.begin(), name_size.end(), '\t');
 			ent.name.assign(name_size.begin(), sep_it);
-			ent.type = mavros_msgs::FileEntry::TYPE_FILE;
+			ent.type = mavros_msgs::srv::FileEntry::TYPE_FILE;
 
 			if (sep_it != name_size.end()) {
 				name_size.erase(name_size.begin(), sep_it + 1);
@@ -719,7 +724,7 @@ private:
 	}
 
 	void list_directory_end() {
-		ROS_DEBUG_NAMED("ftp", "FTP:List done");
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:List done");
 		go_idle(false);
 	}
 
@@ -739,14 +744,14 @@ private:
 		open_size = 0;
 		op_state = OP::OPEN;
 
-		if (mode == mavros_msgs::FileOpenRequest::MODE_READ)
+		if (mode == mavros_msgs::srv::FileOpenRequest::MODE_READ)
 			send_open_ro_command();
-		else if (mode == mavros_msgs::FileOpenRequest::MODE_WRITE)
+		else if (mode == mavros_msgs::srv::FileOpenRequest::MODE_WRITE)
 			send_open_wo_command();
-		else if (mode == mavros_msgs::FileOpenRequest::MODE_CREATE)
+		else if (mode == mavros_msgs::srv::FileOpenRequest::MODE_CREATE)
 			send_create_command();
 		else {
-			ROS_ERROR_NAMED("ftp", "FTP: Unsupported open mode: %d", mode);
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Unsupported open mode: %d", mode);
 			op_state = OP::IDLE;
 			r_errno = EINVAL;
 			return false;
@@ -759,7 +764,7 @@ private:
 	{
 		auto it = session_file_map.find(path);
 		if (it == session_file_map.end()) {
-			ROS_ERROR_NAMED("ftp", "FTP:Close %s: not opened", path.c_str());
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Close %s: not opened", path.c_str());
 			r_errno = EBADF;
 			return false;
 		}
@@ -771,7 +776,7 @@ private:
 	}
 
 	void read_file_end() {
-		ROS_DEBUG_NAMED("ftp", "FTP:Read done");
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:Read done");
 		go_idle(false);
 	}
 
@@ -779,7 +784,7 @@ private:
 	{
 		auto it = session_file_map.find(path);
 		if (it == session_file_map.end()) {
-			ROS_ERROR_NAMED("ftp", "FTP:Read %s: not opened", path.c_str());
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Read %s: not opened", path.c_str());
 			r_errno = EBADF;
 			return false;
 		}
@@ -800,7 +805,7 @@ private:
 	}
 
 	void write_file_end() {
-		ROS_DEBUG_NAMED("ftp", "FTP:Write done");
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:Write done");
 		go_idle(false);
 	}
 
@@ -808,7 +813,7 @@ private:
 	{
 		auto it = session_file_map.find(path);
 		if (it == session_file_map.end()) {
-			ROS_ERROR_NAMED("ftp", "FTP:Write %s: not opened", path.c_str());
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP:Write %s: not opened", path.c_str());
 			r_errno = EBADF;
 			return false;
 		}
@@ -888,12 +893,12 @@ private:
 	 */
 #define SERVICE_IDLE_CHECK()				\
 	if (op_state != OP::IDLE) {			\
-		ROS_ERROR_NAMED("ftp", "FTP: Busy");	\
+		RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Busy");	\
 		return false;				\
 	}
 
-	bool list_cb(mavros_msgs::FileList::Request &req,
-			mavros_msgs::FileList::Response &res)
+	bool list_cb(mavros_msgs::srv::FileList::Request &req,
+			mavros_msgs::srv::FileList::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -908,15 +913,15 @@ private:
 		return true;
 	}
 
-	bool open_cb(mavros_msgs::FileOpen::Request &req,
-			mavros_msgs::FileOpen::Response &res)
+	bool open_cb(mavros_msgs::srv::FileOpen::Request &req,
+			mavros_msgs::srv::FileOpen::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
 		// only one session per file
 		auto it = session_file_map.find(req.file_path);
 		if (it != session_file_map.end()) {
-			ROS_ERROR_NAMED("ftp", "FTP: File %s: already opened",
+			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: File %s: already opened",
 					req.file_path.c_str());
 			return false;
 		}
@@ -931,8 +936,8 @@ private:
 		return true;
 	}
 
-	bool close_cb(mavros_msgs::FileClose::Request &req,
-			mavros_msgs::FileClose::Response &res)
+	bool close_cb(mavros_msgs::srv::FileClose::Request &req,
+			mavros_msgs::srv::FileClose::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -945,8 +950,8 @@ private:
 		return true;
 	}
 
-	bool read_cb(mavros_msgs::FileRead::Request &req,
-			mavros_msgs::FileRead::Response &res)
+	bool read_cb(mavros_msgs::srv::FileRead::Request &req,
+			mavros_msgs::srv::FileRead::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -962,8 +967,8 @@ private:
 		return true;
 	}
 
-	bool write_cb(mavros_msgs::FileWrite::Request &req,
-			mavros_msgs::FileWrite::Response &res)
+	bool write_cb(mavros_msgs::srv::FileWrite::Request &req,
+			mavros_msgs::srv::FileWrite::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -978,8 +983,8 @@ private:
 		return true;
 	}
 
-	bool remove_cb(mavros_msgs::FileRemove::Request &req,
-			mavros_msgs::FileRemove::Response &res)
+	bool remove_cb(mavros_msgs::srv::FileRemove::Request &req,
+			mavros_msgs::srv::FileRemove::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -990,8 +995,8 @@ private:
 		return true;
 	}
 
-	bool rename_cb(mavros_msgs::FileRename::Request &req,
-			mavros_msgs::FileRename::Response &res)
+	bool rename_cb(mavros_msgs::srv::FileRename::Request &req,
+			mavros_msgs::srv::FileRename::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -1005,8 +1010,8 @@ private:
 	}
 
 
-	bool truncate_cb(mavros_msgs::FileTruncate::Request &req,
-			mavros_msgs::FileTruncate::Response &res)
+	bool truncate_cb(mavros_msgs::srv::FileTruncate::Request &req,
+			mavros_msgs::srv::FileTruncate::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -1018,8 +1023,8 @@ private:
 		return true;
 	}
 
-	bool mkdir_cb(mavros_msgs::FileMakeDir::Request &req,
-			mavros_msgs::FileMakeDir::Response &res)
+	bool mkdir_cb(mavros_msgs::srv::FileMakeDir::Request &req,
+			mavros_msgs::srv::FileMakeDir::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -1030,8 +1035,8 @@ private:
 		return true;
 	}
 
-	bool rmdir_cb(mavros_msgs::FileRemoveDir::Request &req,
-			mavros_msgs::FileRemoveDir::Response &res)
+	bool rmdir_cb(mavros_msgs::srv::FileRemoveDir::Request &req,
+			mavros_msgs::srv::FileRemoveDir::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -1042,8 +1047,8 @@ private:
 		return true;
 	}
 
-	bool checksum_cb(mavros_msgs::FileChecksum::Request &req,
-			mavros_msgs::FileChecksum::Response &res)
+	bool checksum_cb(mavros_msgs::srv::FileChecksum::Request &req,
+			mavros_msgs::srv::FileChecksum::Response &res)
 	{
 		SERVICE_IDLE_CHECK();
 
@@ -1061,8 +1066,8 @@ private:
 	 * @brief Reset communication on both sides.
 	 * @note This call break other calls, so use carefully.
 	 */
-	bool reset_cb(std_srvs::Empty::Request &req,
-			std_srvs::Empty::Response &res)
+	bool reset_cb(std_srvs::srv::Empty::Request &req,
+			std_srvs::srv::Empty::Response &res)
 	{
 		send_reset();
 		return true;
@@ -1071,5 +1076,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::FTPPlugin, mavros::plugin::PluginBase)

@@ -6,3 +6,10 @@ core
 # generated
 libmavconn/include/mavconn/mavlink_dialect.h
 libmavconn/src/mavlink_helpers.cpp
+
+/build
+build
+/install
+/log
+
+.vscode

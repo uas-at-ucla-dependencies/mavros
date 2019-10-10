@@ -17,7 +17,7 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <geometry_msgs/PolygonStamped.h>
+#include <geometry_msgs/msg/polygon_stamped.hpp>
 
 namespace mavros {
 namespace std_plugins {
@@ -46,7 +46,7 @@ public:
 				safety_nh.getParam("p1/y", p1y) &&
 				safety_nh.getParam("p1/z", p1z)) {
 			manual_def = true;
-			ROS_DEBUG_NAMED("safetyarea", "SA: Manual set: P1(%f %f %f)",
+			RCUTILS_LOG_DEBUG_NAMED("safetyarea", "SA: Manual set: P1(%f %f %f)",
 					p1x, p1y, p1z);
 		}
 
@@ -55,7 +55,7 @@ public:
 				safety_nh.getParam("p2/y", p2y) &&
 				safety_nh.getParam("p2/z", p2z)) {
 			manual_def = true;
-			ROS_DEBUG_NAMED("safetyarea", "SA: Manual set: P2(%f %f %f)",
+			RCUTILS_LOG_DEBUG_NAMED("safetyarea", "SA: Manual set: P2(%f %f %f)",
 					p2x, p2y, p2z);
 		}
 		else
@@ -66,8 +66,8 @@ public:
 					Eigen::Vector3d(p1x, p1y, p1z),
 					Eigen::Vector3d(p2x, p2y, p2z));
 
-		safetyarea_sub = safety_nh.subscribe("set", 10, &SafetyAreaPlugin::safetyarea_cb, this);
-		safetyarea_pub = safety_nh.advertise<geometry_msgs::PolygonStamped>("get",10);
+		safetyarea_sub = safety_nh->create_subscription("set", 10, std::bind(&SafetyAreaPlugin, this, std::placeholders::_1));
+		safetyarea_pub = safety_nh->create_publisher<geometry_msgs::msg::PolygonStamped>("get",10);
 	}
 
 	Subscriptions get_subscriptions()
@@ -78,17 +78,17 @@ public:
 	}
 
 private:
-	ros::NodeHandle safety_nh;
+	rclcpp::Node::SharedPtr safety_nh;
 
 	std::string frame_id;
 
-	ros::Subscriber safetyarea_sub;
-	ros::Publisher safetyarea_pub;
+	rclcpp::Subscription<>::SharedPtr safetyarea_sub;
+	rclcpp::Publisher<>::SharedPtr safetyarea_pub;
 
 	/* -*- rx handlers -*- */
 	void handle_safety_allowed_area(const mavlink::mavlink_message_t *msg, mavlink::common::msg::SAFETY_ALLOWED_AREA &saa)
 	{
-		auto saa_msg = boost::make_shared<geometry_msgs::PolygonStamped>();
+		auto saa_msg = std::make_shared<geometry_msgs::msg::PolygonStamped>();
 
 		Eigen::Vector3d p1(saa.p1x, saa.p1y, saa.p1z);
 		Eigen::Vector3d p2(saa.p2x, saa.p2y, saa.p2z);
@@ -96,7 +96,7 @@ private:
 		p1 = ftf::transform_frame_ned_enu(p1);
 		p2 = ftf::transform_frame_ned_enu(p2);
 
-		saa_msg->header.stamp = ros::Time::now();
+		saa_msg->header.stamp = rclcpp::Time::now();
 		saa_msg->header.frame_id = frame_id;
 		//saa_msg->header.frame_id = utils::to_string(saa.frame);	@TODO: after #311 merged this will work
 
@@ -121,7 +121,7 @@ private:
 	 */
 	void send_safety_set_allowed_area(Eigen::Vector3d p1, Eigen::Vector3d p2)
 	{
-		ROS_INFO_STREAM_NAMED("safetyarea", "SA: Set safety area: P1 " << p1 << " P2 " << p2);
+		RCUTILS_LOG_INFO_NAMED("safetyarea", "SA: Set safety area: P1 " << p1 << " P2 " << p2);
 
 		p1 = ftf::transform_frame_enu_ned(p1);
 		p2 = ftf::transform_frame_enu_ned(p2);
@@ -150,10 +150,10 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void safetyarea_cb(const geometry_msgs::PolygonStamped::ConstPtr &req)
+	void safetyarea_cb(const geometry_msgs::msg::PolygonStamped::ConstPtr &req)
 	{
 		if (req->polygon.points.size() != 2) {
-			ROS_ERROR_NAMED("safetyarea", "SA: Polygon should contain only two points");
+			RCUTILS_LOG_ERROR_NAMED("safetyarea", "SA: Polygon should contain only two points");
 			return;
 		}
 
@@ -174,5 +174,5 @@ private:
 }	// namespace std_plugins
 }	// namespace mavros
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::SafetyAreaPlugin, mavros::plugin::PluginBase)

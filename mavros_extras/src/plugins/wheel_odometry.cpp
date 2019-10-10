@@ -15,10 +15,10 @@
  */
 
 #include <mavros/mavros_plugin.h>
-#include <mavros_msgs/WheelOdomStamped.h>
+#include <mavros_msgs/msg/WheelOdomStamped.hpp>
 
-#include <geometry_msgs/TwistWithCovarianceStamped.h>
-#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/msg/TwistWithCovarianceStamped.hpp>
+#include <nav_msgs/msg/Odometry.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_eigen/tf2_eigen.h>

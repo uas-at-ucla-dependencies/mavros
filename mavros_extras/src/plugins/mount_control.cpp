@@ -16,9 +16,9 @@
 
 #include <mavros/mavros_plugin.h>
 
-#include <mavros_msgs/CommandLong.h>
-#include <mavros_msgs/MountControl.h>
-#include <mavros_msgs/MountConfigure.h>
+#include <mavros_msgs/msg/CommandLong.hpp>
+#include <mavros_msgs/msg/MountControl.hpp>
+#include <mavros_msgs/msg/MountConfigure.hpp>
 
 namespace mavros {
 namespace extra_plugins {

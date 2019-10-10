@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <test_mavros/sitl_test/test_setup.h>
 #include <test_mavros/tests/offboard_control.h>
 

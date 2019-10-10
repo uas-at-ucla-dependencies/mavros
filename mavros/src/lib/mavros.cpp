@@ -11,7 +11,7 @@
  * https://github.com/mavlink/mavros/tree/master/LICENSE.md
  */
 
-#include <ros/console.h>
+#include <rclcpp/rclcpp.hpp>
 #include <mavros/mavros.h>
 #include <mavros/utils.h>
 #include <fnmatch.h>
@@ -27,14 +27,19 @@ using mavlink::mavlink_message_t;
 using plugin::PluginBase;
 using utils::enum_value;
 
+rclcpp::Logger MavRos::logger = rclcpp::get_logger("MavRos");
 
-MavRos::MavRos() :
-	mavlink_nh("mavlink"),		// allow to namespace it
+
+MavRos::MavRos(const rclcpp::NodeOptions& node_options) :
+	rclcpp::Node("mavlink", "mavros", node_options),		// allow to namespace it
+	clock(get_clock()),
 	fcu_link_diag("FCU connection"),
 	gcs_link_diag("GCS bridge"),
 	plugin_loader("mavros", "mavros::plugin::PluginBase"),
 	last_message_received_from_gcs(0),
-	plugin_subscriptions{}
+	conn_timeout(0, 0),
+	plugin_subscriptions{},
+	mav_uas(this)
 {
 	std::string fcu_url, gcs_url;
 	std::string fcu_protocol;
@@ -42,31 +47,29 @@ MavRos::MavRos() :
 	int tgt_system_id, tgt_component_id;
 	bool px4_usb_quirk;
 	double conn_timeout_d;
-	ros::V_string plugin_blacklist{}, plugin_whitelist{};
+	std::vector<std::string> plugin_blacklist{}, plugin_whitelist{};
 	MAVConnInterface::Ptr fcu_link;
 
-	ros::NodeHandle nh("~");
+	fcu_url = declare_parameter<std::string>("fcu_url", "serial:///dev/ttyACM0");
+	gcs_url = declare_parameter<std::string>("gcs_url", "udp://@");
+	gcs_quiet_mode = declare_parameter<bool>("gcs_quiet_mode", false);
+	conn_timeout_d = declare_parameter<double>("conn/timeout", 30.0);
 
-	nh.param<std::string>("fcu_url", fcu_url, "serial:///dev/ttyACM0");
-	nh.param<std::string>("gcs_url", gcs_url, "udp://@");
-	nh.param<bool>("gcs_quiet_mode", gcs_quiet_mode, false);
-	nh.param("conn/timeout", conn_timeout_d, 30.0);
+	fcu_protocol = declare_parameter<std::string>("fcu_protocol", "v2.0");
+	system_id = declare_parameter<int>("system_id", 1);
+	component_id = declare_parameter<int>("component_id", mavconn::MAV_COMP_ID_UDP_BRIDGE);
+	tgt_system_id = declare_parameter<int>("target_system_id", 1);
+	tgt_component_id = declare_parameter<int>("target_component_id", 1);
+	px4_usb_quirk = declare_parameter<bool>("startup_px4_usb_quirk", false);
+	plugin_blacklist = declare_parameter<std::vector<std::string>>("plugin_blacklist", {});
+	plugin_whitelist = declare_parameter<std::vector<std::string>>("plugin_whitelist", {});
 
-	nh.param<std::string>("fcu_protocol", fcu_protocol, "v2.0");
-	nh.param("system_id", system_id, 1);
-	nh.param<int>("component_id", component_id, mavconn::MAV_COMP_ID_UDP_BRIDGE);
-	nh.param("target_system_id", tgt_system_id, 1);
-	nh.param("target_component_id", tgt_component_id, 1);
-	nh.param("startup_px4_usb_quirk", px4_usb_quirk, false);
-	nh.getParam("plugin_blacklist", plugin_blacklist);
-	nh.getParam("plugin_whitelist", plugin_whitelist);
-
-	conn_timeout = ros::Duration(conn_timeout_d);
+	conn_timeout = rclcpp::Duration(conn_timeout_d);
 
 	// Now we use FCU URL as a hardware Id
 	UAS_DIAG(&mav_uas).setHardwareID(fcu_url);
 
-	ROS_INFO_STREAM("FCU URL: " << fcu_url);
+	RCLCPP_INFO(logger, "FCU URL: %s", fcu_url.c_str());
 	try {
 		fcu_link = MAVConnInterface::open_url(fcu_url, system_id, component_id);
 		// may be overridden by URL
@@ -77,8 +80,8 @@ MavRos::MavRos() :
 		UAS_DIAG(&mav_uas).add(fcu_link_diag);
 	}
 	catch (mavconn::DeviceError &ex) {
-		ROS_FATAL("FCU: %s", ex.what());
-		ros::shutdown();
+		RCLCPP_FATAL(logger, "FCU: %s", ex.what());
+		rclcpp::shutdown();
 		return;
 	}
 
@@ -92,34 +95,35 @@ MavRos::MavRos() :
 	//	fcu_link->set_protocol_version(mavconn::Protocol::V20);
 	//}
 	else {
-		ROS_WARN("Unknown FCU protocol: \"%s\", should be: \"v1.0\" or \"v2.0\". Used default v1.0.", fcu_protocol.c_str());
+		RCLCPP_WARN(logger, "Unknown FCU protocol: \"%s\", should be: \"v1.0\" or \"v2.0\". Used default v1.0.", fcu_protocol.c_str());
 		fcu_link->set_protocol_version(mavconn::Protocol::V10);
 	}
 
 	if (gcs_url != "") {
-		ROS_INFO_STREAM("GCS URL: " << gcs_url);
+		RCLCPP_INFO(logger, "GCS URL: %s", gcs_url.c_str());
 		try {
 			gcs_link = MAVConnInterface::open_url(gcs_url, system_id, component_id);
 
 			gcs_link_diag.set_mavconn(gcs_link);
-			gcs_diag_updater.setHardwareID(gcs_url);
-			gcs_diag_updater.add(gcs_link_diag);
+			UAS_DIAG(&mav_uas).setHardwareID(gcs_url);
+			UAS_DIAG(&mav_uas).add(gcs_link_diag);
 		}
 		catch (mavconn::DeviceError &ex) {
-			ROS_FATAL("GCS: %s", ex.what());
-			ros::shutdown();
+			RCLCPP_FATAL(logger, "GCS: %s", ex.what());
+			rclcpp::shutdown();
 			return;
 		}
 	}
 	else
-		ROS_INFO("GCS bridge disabled");
+		RCLCPP_INFO(logger, "GCS bridge disabled");
 
 	// ROS mavlink bridge
-	mavlink_pub = mavlink_nh.advertise<mavros_msgs::Mavlink>("from", 100);
-	mavlink_sub = mavlink_nh.subscribe("to", 100, &MavRos::mavlink_sub_cb, this,
-		ros::TransportHints()
-			.unreliable().maxDatagramSize(1024)
-			.reliable());
+	mavlink_pub = create_publisher<mavros_msgs::msg::Mavlink>("mavlink/from", 100);
+	mavlink_sub = create_subscription<mavros_msgs::msg::Mavlink>("mavlink/to", rclcpp::QoS(100),
+		std::bind(&MavRos::mavlink_sub_cb, this, std::placeholders::_1)); //,
+		// ros::TransportHints()
+		// 	.unreliable().maxDatagramSize(1024)
+		// 	.reliable());
 
 	// setup UAS and diag
 	mav_uas.set_tgt(tgt_system_id, tgt_component_id);
@@ -145,7 +149,7 @@ MavRos::MavRos() :
 
 		if (gcs_link) {
 			if (this->gcs_quiet_mode && msg->msgid != mavlink::common::msg::HEARTBEAT::MSG_ID &&
-				(ros::Time::now() - this->last_message_received_from_gcs > this->conn_timeout)) {
+				(clock->now() - this->last_message_received_from_gcs > this->conn_timeout)) {
 				return;
 			}
 
@@ -154,14 +158,14 @@ MavRos::MavRos() :
 	};
 
 	fcu_link->port_closed_cb = []() {
-		ROS_ERROR("FCU connection closed, mavros will be terminated.");
-		ros::requestShutdown();
+		RCLCPP_ERROR(logger, "FCU connection closed, mavros will be terminated.");
+		rclcpp::shutdown();
 	};
 
 	if (gcs_link) {
 		// setup GCS link bridge
 		gcs_link->message_received_cb = [this, fcu_link](const mavlink_message_t *msg, const Framing framing) {
-			this->last_message_received_from_gcs = ros::Time::now();
+			this->last_message_received_from_gcs = this->clock->now();
 			fcu_link->send_message_ignore_drop(msg);
 		};
 
@@ -175,55 +179,47 @@ MavRos::MavRos() :
 	for (auto &s : mavconn::MAVConnInterface::get_known_dialects())
 		ss << " " << s;
 
-	ROS_INFO("Built-in SIMD instructions: %s", Eigen::SimdInstructionSetsInUse());
-	ROS_INFO("Built-in MAVLink package version: %s", MAVLINK_VERSION);
-	ROS_INFO("Known MAVLink dialects:%s", ss.str().c_str());
-	ROS_INFO("MAVROS started. MY ID %u.%u, TARGET ID %u.%u",
+	RCLCPP_INFO(logger, "Built-in SIMD instructions: %s", Eigen::SimdInstructionSetsInUse());
+	RCLCPP_INFO(logger, "Built-in MAVLink package version: %s", MAVLINK_VERSION);
+	RCLCPP_INFO(logger, "Known MAVLink dialects:%s", ss.str().c_str());
+	RCLCPP_INFO(logger, "MAVROS started. MY ID %u.%u, TARGET ID %u.%u",
 		system_id, component_id,
 		tgt_system_id, tgt_component_id);
 }
 
 void MavRos::spin()
 {
-	ros::AsyncSpinner spinner(4 /* threads */);
+	if (!rclcpp::ok()) {
+		return;
+	}
+	rclcpp::executors::MultiThreadedExecutor executor;
+	executor.add_node(shared_from_this());
 
-	auto diag_timer = mavlink_nh.createTimer(
-			ros::Duration(0.5),
-			[&](const ros::TimerEvent &) {
-				UAS_DIAG(&mav_uas).update();
+	executor.spin();
 
-				if (gcs_link)
-					gcs_diag_updater.update();
-			});
-	diag_timer.start();
-
-	spinner.start();
-	ros::waitForShutdown();
-
-	ROS_INFO("Stopping mavros...");
-	spinner.stop();
+	RCLCPP_INFO(logger, "Stopping mavros...");
 }
 
 void MavRos::mavlink_pub_cb(const mavlink_message_t *mmsg, Framing framing)
 {
-	auto rmsg = boost::make_shared<mavros_msgs::Mavlink>();
+	mavros_msgs::msg::Mavlink rmsg;
 
-	if  (mavlink_pub.getNumSubscribers() == 0)
+	if  (mavlink_pub->get_subscription_count() == 0)
 		return;
 
-	rmsg->header.stamp = ros::Time::now();
-	mavros_msgs::mavlink::convert(*mmsg, *rmsg, enum_value(framing));
-	mavlink_pub.publish(rmsg);
+	rmsg.header.stamp = clock->now();
+	mavros_msgs::mavlink::convert(*mmsg, rmsg, enum_value(framing));
+	mavlink_pub->publish(rmsg);
 }
 
-void MavRos::mavlink_sub_cb(const mavros_msgs::Mavlink::ConstPtr &rmsg)
+void MavRos::mavlink_sub_cb(const mavros_msgs::msg::Mavlink::UniquePtr rmsg)
 {
 	mavlink_message_t mmsg;
 
 	if (mavros_msgs::mavlink::convert(*rmsg, mmsg))
 		UAS_FCU(&mav_uas)->send_message_ignore_drop(&mmsg);
 	else
-		ROS_ERROR("Drop mavlink packet: convert error.");
+		RCLCPP_ERROR(logger, "Drop mavlink packet: convert error.");
 }
 
 void MavRos::plugin_route_cb(const mavlink_message_t *mmsg, const Framing framing)
@@ -243,9 +239,9 @@ static bool pattern_match(std::string &pattern, std::string &pl_name)
 		return true;
 	else if (cmp != FNM_NOMATCH) {
 		// never see that, i think that it is fatal error.
-		ROS_FATAL("Plugin list check error! fnmatch('%s', '%s', FNM_CASEFOLD) -> %d",
+		RCLCPP_FATAL(MavRos::logger, "Plugin list check error! fnmatch('%s', '%s', FNM_CASEFOLD) -> %d",
 				pattern.c_str(), pl_name.c_str(), cmp);
-		ros::shutdown();
+		rclcpp::shutdown();
 	}
 
 	return false;
@@ -263,7 +259,7 @@ static bool pattern_match(std::string &pattern, std::string &pl_name)
  *
  * @note Issue #257.
  */
-static bool is_blacklisted(std::string &pl_name, ros::V_string &blacklist, ros::V_string &whitelist)
+static bool is_blacklisted(std::string &pl_name, std::vector<std::string> &blacklist, std::vector<std::string> &whitelist)
 {
 	for (auto &bl_pattern : blacklist) {
 		if (pattern_match(bl_pattern, pl_name)) {
@@ -288,17 +284,17 @@ inline bool is_mavlink_message_t(const size_t rt)
 /**
  * @brief Loads plugin (if not blacklisted)
  */
-void MavRos::add_plugin(std::string &pl_name, ros::V_string &blacklist, ros::V_string &whitelist)
+void MavRos::add_plugin(std::string &pl_name, std::vector<std::string> &blacklist, std::vector<std::string> &whitelist)
 {
 	if (is_blacklisted(pl_name, blacklist, whitelist)) {
-		ROS_INFO_STREAM("Plugin " << pl_name << " blacklisted");
+		RCLCPP_INFO(logger, "Plugin %s blacklisted", pl_name.c_str());
 		return;
 	}
 
 	try {
-		auto plugin = plugin_loader.createInstance(pl_name);
+		auto plugin = plugin_loader.createSharedInstance(pl_name);
 
-		ROS_INFO_STREAM("Plugin " << pl_name << " loaded");
+		RCLCPP_INFO(logger, "Plugin %s loaded", pl_name.c_str());
 
 		for (auto &info : plugin->get_subscriptions()) {
 			auto msgid = std::get<0>(info);
@@ -312,13 +308,13 @@ void MavRos::add_plugin(std::string &pl_name, ros::V_string &blacklist, ros::V_s
 			else
 				log_msgname = utils::format("%s (%u) <%zu>", msgname, msgid, type_hash_);
 
-			ROS_DEBUG_STREAM("Route " << log_msgname << " to " << pl_name);
+			RCLCPP_DEBUG(logger, "Route %s to %s", log_msgname.c_str(), pl_name.c_str());
 
 			auto it = plugin_subscriptions.find(msgid);
 			if (it == plugin_subscriptions.end()) {
 				// new entry
 
-				ROS_DEBUG_STREAM(log_msgname << " - new element");
+				RCLCPP_DEBUG(logger, "%s - new element", log_msgname.c_str());
 				plugin_subscriptions[msgid] = PluginBase::Subscriptions{{info}};
 			}
 			else {
@@ -330,27 +326,28 @@ void MavRos::add_plugin(std::string &pl_name, ros::V_string &blacklist, ros::V_s
 					for (auto &e : it->second) {
 						auto t2 = std::get<2>(e);
 						if (!is_mavlink_message_t(t2) && t2 != type_hash_) {
-							ROS_ERROR_STREAM(log_msgname << " routed to different message type (hash: " << t2 << ")");
+							RCLCPP_ERROR(logger, "%s routed to different message type (hash: %z)",
+								log_msgname.c_str(), t2);
 							append_allowed = false;
 						}
 					}
 				}
 
 				if (append_allowed) {
-					ROS_DEBUG_STREAM(log_msgname << " - emplace");
+					RCLCPP_DEBUG(logger, "%s - emplace", log_msgname.c_str());
 					it->second.emplace_back(info);
 				}
 				else
-					ROS_ERROR_STREAM(log_msgname << " handler dropped because this ID are used for another message type");
+					RCLCPP_ERROR(logger, "%s handler dropped because this ID are used for another message type", log_msgname.c_str());
 			}
 		}
 
 		plugin->initialize(mav_uas);
 		loaded_plugins.push_back(plugin);
 
-		ROS_INFO_STREAM("Plugin " << pl_name << " initialized");
+		RCLCPP_INFO(logger, "Plugin %s initialized", pl_name.c_str());
 	} catch (pluginlib::PluginlibException &ex) {
-		ROS_ERROR_STREAM("Plugin " << pl_name << " load exception: " << ex.what());
+		RCLCPP_ERROR(logger, "Plugin %s load exception: %s", pl_name.c_str(), ex.what());
 	}
 }
 
@@ -360,7 +357,7 @@ void MavRos::startup_px4_usb_quirk()
        const uint8_t init[] = {0x0d, 0x0d, 0x0d, 0};
        const uint8_t nsh[] = "sh /etc/init.d/rc.usb\n";
 
-       ROS_INFO("Autostarting mavlink via USB on PX4");
+       RCLCPP_INFO(logger, "Autostarting mavlink via USB on PX4");
        UAS_FCU(&mav_uas)->send_bytes(init, 3);
        UAS_FCU(&mav_uas)->send_bytes(nsh, sizeof(nsh) - 1);
        UAS_FCU(&mav_uas)->send_bytes(init, 4); /* NOTE in original init[3] */
@@ -372,7 +369,7 @@ void MavRos::log_connect_change(bool connected)
 
 	/* note: sys_status plugin required */
 	if (connected)
-		ROS_INFO("CON: Got HEARTBEAT, connected. FCU: %s", ap.c_str());
+		RCLCPP_INFO(logger, "CON: Got HEARTBEAT, connected. FCU: %s", ap.c_str());
 	else
-		ROS_WARN("CON: Lost connection, HEARTBEAT timed out.");
+		RCLCPP_WARN(logger, "CON: Lost connection, HEARTBEAT timed out.");
 }
