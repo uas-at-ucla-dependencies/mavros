@@ -150,7 +150,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void safetyarea_cb(const geometry_msgs::msg::PolygonStamped::ConstPtr &req)
+	void safetyarea_cb(const geometry_msgs::msg::PolygonStamped::SharedPtr req)
 	{
 		if (req->polygon.points.size() != 2) {
 			RCUTILS_LOG_ERROR_NAMED("safetyarea", "SA: Polygon should contain only two points");

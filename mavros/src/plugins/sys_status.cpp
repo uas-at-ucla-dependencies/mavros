@@ -1006,7 +1006,7 @@ private:
 
 	/* -*- subscription callbacks -*- */
 
-	void statustext_cb(const mavros_msgs::msg::StatusText::ConstPtr &req) {
+	void statustext_cb(const mavros_msgs::msg::StatusText::SharedPtr req) {
 		mavlink::common::msg::STATUSTEXT statustext {};
 		statustext.severity = req->severity;
 
@@ -1020,8 +1020,8 @@ private:
 
 	/* -*- ros callbacks -*- */
 
-	bool set_rate_cb(mavros_msgs::msg::StreamRate::Request &req,
-			mavros_msgs::msg::StreamRate::Response &res)
+	bool set_rate_cb(mavros_msgs::msg::StreamRate::Request::SharedPtr req,
+			mavros_msgs::msg::StreamRate::Response::SharedPtr res)
 	{
 		mavlink::common::msg::REQUEST_DATA_STREAM rq;
 
@@ -1035,8 +1035,8 @@ private:
 		return true;
 	}
 
-	bool set_mode_cb(mavros_msgs::msg::SetMode::Request &req,
-			mavros_msgs::msg::SetMode::Response &res)
+	bool set_mode_cb(mavros_msgs::msg::SetMode::Request::SharedPtr req,
+			mavros_msgs::msg::SetMode::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_MODE_FLAG;
 
@@ -1069,8 +1069,8 @@ private:
 		return true;
 	}
 
-	bool vehicle_info_get_cb(mavros_msgs::msg::VehicleInfoGet::Request &req,
-			mavros_msgs::msg::VehicleInfoGet::Response &res)
+	bool vehicle_info_get_cb(mavros_msgs::msg::VehicleInfoGet::Request::SharedPtr req,
+			mavros_msgs::msg::VehicleInfoGet::Response::SharedPtr res)
 	{
 		if (req.get_all) {
 			// Send all vehicles
@@ -1105,8 +1105,8 @@ private:
 		return res.success;
 	}
 
-    bool set_message_interval_cb(mavros_msgs::msg::MessageInterval::Request &req,
-            mavros_msgs::msg::MessageInterval::Response &res)
+    bool set_message_interval_cb(mavros_msgs::msg::MessageInterval::Request::SharedPtr req,
+            mavros_msgs::msg::MessageInterval::Response::SharedPtr res)
     {
         using mavlink::common::MAV_CMD;
 

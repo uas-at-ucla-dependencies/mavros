@@ -47,7 +47,6 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	GlobalPositionPlugin() : PluginBase(),
-		gp_nh("~global_position"),
 		tf_send(false),
 		rot_cov(99999.0),
 		use_relative_alt(true),
@@ -57,18 +56,19 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		gp_nh = uas_.mavros_node->create_sub_node("global_position"),
 
 		// general params
-		gp_nh.param<std::string>("frame_id", frame_id, "map");
-		gp_nh.param<std::string>("child_frame_id", child_frame_id, "base_link");
-		gp_nh.param("rot_covariance", rot_cov, 99999.0);
-		gp_nh.param("gps_uere", gps_uere, 1.0);
-		gp_nh.param("use_relative_alt", use_relative_alt, true);
+		frame_id = gp_nh->declare_parameter<std::string>("frame_id", "map");
+		child_frame_id = gp_nh->declare_parameter<std::string>("child_frame_id", "base_link");
+		rot_cov = gp_nh->declare_parameter("rot_covariance", 99999.0);
+		gps_uere = gp_nh->declare_parameter("gps_uere", 1.0);
+		use_relative_alt = gp_nh->declare_parameter("use_relative_alt", true);
 		// tf subsection
-		gp_nh.param("tf/send", tf_send, false);
-		gp_nh.param<std::string>("tf/frame_id", tf_frame_id, "map");
-		gp_nh.param<std::string>("tf/global_frame_id", tf_global_frame_id, "earth");	// The global_origin should be represented as "earth" coordinate frame (ECEF) (REP 105)
-		gp_nh.param<std::string>("tf/child_frame_id", tf_child_frame_id, "base_link");
+		tf_send = gp_nh->declare_parameter("tf/send", false);
+		tf_frame_id = gp_nh->declare_parameter<std::string>("tf/frame_id", "map");
+		tf_global_frame_id = gp_nh->declare_parameter<std::string>("tf/global_frame_id", "earth");	// The global_origin should be represented as "earth" coordinate frame (ECEF) (REP 105)
+		tf_child_frame_id = gp_nh->declare_parameter<std::string>("tf/child_frame_id", "base_link");
 
 		UAS_DIAG(m_uas).add("GPS", this, &GlobalPositionPlugin::gps_diag_run);
 
@@ -85,11 +85,11 @@ public:
 
 		// global origin
 		gp_global_origin_pub = gp_nh->create_publisher<geographic_msgs::msg::GeoPointStamped>("gp_origin", 10);
-		gp_set_global_origin_sub = gp_nh->create_subscription("set_gp_origin", 10, std::bind(&GlobalPositionPlugin, this, std::placeholders::_1));
+		gp_set_global_origin_sub = gp_nh->create_subscription<geographic_msgs::msg::GeoPointStamped>("set_gp_origin", 10, std::bind(&GlobalPositionPlugin::set_gp_origin_cb, this, std::placeholders::_1));
 
 		// home position subscriber to set "map" origin
 		// TODO use UAS
-		hp_sub = gp_nh->create_subscription("home", 10, std::bind(&GlobalPositionPlugin, this, std::placeholders::_1));
+		hp_sub = gp_nh->create_subscription<mavros_msgs::msg::HomePosition>("home", 10, std::bind(&GlobalPositionPlugin::home_position_cb, this, std::placeholders::_1));
 
 		// offset from local position to the global origin ("earth")
 		gp_global_offset_pub = gp_nh->create_publisher<geometry_msgs::msg::PoseStamped>("gp_lp_offset", 10);
@@ -109,18 +109,18 @@ public:
 private:
 	rclcpp::Node::SharedPtr gp_nh;
 
-	rclcpp::Publisher<>::SharedPtr raw_fix_pub;
-	rclcpp::Publisher<>::SharedPtr raw_vel_pub;
-	rclcpp::Publisher<>::SharedPtr raw_sat_pub;
-	rclcpp::Publisher<>::SharedPtr gp_odom_pub;
-	rclcpp::Publisher<>::SharedPtr gp_fix_pub;
-	rclcpp::Publisher<>::SharedPtr gp_hdg_pub;
-	rclcpp::Publisher<>::SharedPtr gp_rel_alt_pub;
-	rclcpp::Publisher<>::SharedPtr gp_global_origin_pub;
-	rclcpp::Publisher<>::SharedPtr gp_global_offset_pub;
+	rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr raw_fix_pub;
+	rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr raw_vel_pub;
+	rclcpp::Publisher<std_msgs::msg::UInt32>::SharedPtr raw_sat_pub;
+	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr gp_odom_pub;
+	rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr gp_fix_pub;
+	rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gp_hdg_pub;
+	rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gp_rel_alt_pub;
+	rclcpp::Publisher<geographic_msgs::msg::GeoPointStamped>::SharedPtr gp_global_origin_pub;
+	rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr gp_global_offset_pub;
 
-	rclcpp::Subscription<>::SharedPtr gp_set_global_origin_sub;
-	rclcpp::Subscription<>::SharedPtr hp_sub;
+	rclcpp::Subscription<geographic_msgs::msg::GeoPointStamped>::SharedPtr gp_set_global_origin_sub;
+	rclcpp::Subscription<mavros_msgs::msg::HomePosition>::SharedPtr hp_sub;
 
 	std::string frame_id;		//!< origin frame for topic headers
 	std::string child_frame_id;	//!< body-fixed frame for topic headers
@@ -194,7 +194,7 @@ private:
 
 		// store & publish
 		m_uas->update_gps_fix_epts(fix, eph, epv, raw_gps.fix_type, raw_gps.satellites_visible);
-		raw_fix_pub.publish(fix);
+		raw_fix_pub->publish(*fix);
 
 		if (raw_gps.vel != UINT16_MAX &&
 					raw_gps.cog != UINT16_MAX) {
@@ -210,13 +210,13 @@ private:
 			vel->twist.linear.x = speed * std::sin(course);
 			vel->twist.linear.y = speed * std::cos(course);
 
-			raw_vel_pub.publish(vel);
+			raw_vel_pub->publish(*vel);
 		}
 
 		// publish satellite count
 		auto sat_cnt = std::make_shared<std_msgs::msg::UInt32>();
 		sat_cnt->data = raw_gps.satellites_visible;
-		raw_sat_pub.publish(sat_cnt);
+		raw_sat_pub->publish(*sat_cnt);
 	}
 
 	void handle_gps_global_origin(const mavlink::mavlink_message_t *msg, mavlink::common::msg::GPS_GLOBAL_ORIGIN &glob_orig)
@@ -225,7 +225,7 @@ private:
 		// auto header = m_uas->synchronized_header(frame_id, glob_orig.time_boot_ms);	#TODO: requires Mavlink msg update
 
 		g_origin->header.frame_id = tf_global_frame_id;
-		g_origin->header.stamp = rclcpp::Time::now();
+		g_origin->header.stamp = rclcpp::Clock().now();
 
 		g_origin->position.latitude = glob_orig.latitude / 1E7;
 		g_origin->position.longitude = glob_orig.longitude / 1E7;
@@ -242,10 +242,10 @@ private:
 			earth.Forward(g_origin->position.latitude, g_origin->position.longitude, g_origin->position.altitude,
 				g_origin->position.latitude, g_origin->position.longitude, g_origin->position.altitude);
 
-			gp_global_origin_pub.publish(g_origin);
+			gp_global_origin_pub->publish(*g_origin);
 		}
 		catch (const std::exception& e) {
-			ROS_INFO_STREAM("GP: Caught exception: " << e.what() << std::endl);
+			RCUTILS_LOG_INFO("GP: Caught exception: %s", e.what());
 		}
 	}
 
@@ -347,7 +347,7 @@ private:
 			}
 		}
 		catch (const std::exception& e) {
-			ROS_INFO_STREAM("GP: Caught exception: " << e.what() << std::endl);
+			RCUTILS_LOG_INFO("GP: Caught exception: %s", e.what());
 		}
 
 		// Compute the local coordinates in ECEF
@@ -375,10 +375,10 @@ private:
 									rot_cov;
 
 		// publish
-		gp_fix_pub.publish(fix);
-		gp_odom_pub.publish(odom);
-		gp_rel_alt_pub.publish(relative_alt);
-		gp_hdg_pub.publish(compass_heading);
+		gp_fix_pub->publish(*fix);
+		gp_odom_pub->publish(*odom);
+		gp_rel_alt_pub->publish(*relative_alt);
+		gp_hdg_pub->publish(*compass_heading);
 
 		// TF
 		if (tf_send) {
@@ -413,7 +413,7 @@ private:
 		tf::pointEigenToMsg(enu_position, global_offset->pose.position);
 		tf::quaternionEigenToMsg(enu_baselink_orientation, global_offset->pose.orientation);
 
-		gp_global_offset_pub.publish(global_offset);
+		gp_global_offset_pub->publish(*global_offset);
 
 		// TF
 		if (tf_send) {
@@ -468,7 +468,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void home_position_cb(const mavros_msgs::msg::HomePosition::ConstPtr &req)
+	void home_position_cb(const mavros_msgs::msg::HomePosition::SharedPtr req)
 	{
 		map_origin.x() = req->geo.latitude;
 		map_origin.y() = req->geo.longitude;
@@ -486,13 +486,13 @@ private:
 						ecef_origin.x(), ecef_origin.y(), ecef_origin.z());
 		}
 		catch (const std::exception& e) {
-			ROS_INFO_STREAM("GP: Caught exception: " << e.what() << std::endl);
+			RCUTILS_LOG_INFO("GP: Caught exception: %s", e.what());
 		}
 
 		is_map_init = true;
 	}
 
-	void set_gp_origin_cb(const geographic_msgs::msg::GeoPointStamped::ConstPtr &req)
+	void set_gp_origin_cb(const geographic_msgs::msg::GeoPointStamped::SharedPtr req)
 	{
 		mavlink::common::msg::SET_GPS_GLOBAL_ORIGIN gpo;
 

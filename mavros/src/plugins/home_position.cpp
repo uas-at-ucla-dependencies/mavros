@@ -17,7 +17,7 @@
 #include <mavros/mavros_plugin.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <std_srvs/srv/trigger.h>
+#include <std_srvs/srv/trigger.hpp>
 #include <mavros_msgs/srv/command_long.hpp>
 #include <mavros_msgs/msg/home_position.hpp>
 
@@ -32,20 +32,20 @@ namespace std_plugins {
 class HomePositionPlugin : public plugin::PluginBase {
 public:
 	HomePositionPlugin() :
-		hp_nh("~home_position"),
 		REQUEST_POLL_TIME_DT(REQUEST_POLL_TIME_MS / 1000.0)
 	{ }
 
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		hp_nh = uas_.mavros_node->create_sub_node("home_position"),
 
-		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("home", 2, true);
-		hp_sub = hp_nh->create_subscription("set", 10, std::bind(&HomePositionPlugin, this, std::placeholders::_1));
-		update_srv = hp_nh->create_service("req_update", std::bind(&HomePositionPlugin, this, std::placeholders::_1));
+		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("home", 2);
+		hp_sub = hp_nh->create_subscription<mavros_msgs::msg::HomePosition>("set", 10, std::bind(&HomePositionPlugin::home_position_cb, this, std::placeholders::_1));
+		update_srv = hp_nh->create_service<std_srvs::srv::Trigger>("req_update", std::bind(&HomePositionPlugin::req_update_cb, this, std::placeholders::_1, std::placeholders::_2));
 
-		poll_timer = hp_nh.createTimer(REQUEST_POLL_TIME_DT, std::bind(&HomePositionPlugin, this, std::placeholders::_1));
-		poll_timer.stop();
+		poll_timer = hp_nh->create_wall_timer(REQUEST_POLL_TIME_DT, std::bind(&HomePositionPlugin::timeout_cb, this));
+		poll_timer->cancel();
 		enable_connection_cb();
 	}
 
@@ -59,14 +59,14 @@ public:
 private:
 	rclcpp::Node::SharedPtr hp_nh;
 
-	rclcpp::Publisher<>::SharedPtr hp_pub;
-	rclcpp::Subscription<>::SharedPtr hp_sub;
-	rclcpp::Service<>::SharedPtr update_srv;
+	rclcpp::Publisher<mavros_msgs::msg::HomePosition>::SharedPtr hp_pub;
+	rclcpp::Subscription<mavros_msgs::msg::HomePosition>::SharedPtr hp_sub;
+	rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr update_srv;
 
-	rclcpp::Timer poll_timer;
+	rclcpp::TimerBase::SharedPtr poll_timer;
 
 	static constexpr int REQUEST_POLL_TIME_MS = 10000;	//! position refresh poll interval
-	const ros::Duration REQUEST_POLL_TIME_DT;
+	const std::chrono::duration<double> REQUEST_POLL_TIME_DT;
 
 	bool call_get_home_position(void)
 	{
@@ -75,17 +75,17 @@ private:
 		bool ret = false;
 
 		try {
-			rclcpp::Node::SharedPtr pnh("~");
-			auto client = pnh.serviceClient<mavros_msgs::msg::CommandLong>("cmd/command");
+			auto client = hp_nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
 
-			mavros_msgs::msg::CommandLong cmd{};
+			auto cmd = std::shared_ptr<mavros_msgs::srv::CommandLong::Request>();
 
-			cmd.request.command = utils::enum_value(MAV_CMD::GET_HOME_POSITION);
+			cmd->command = utils::enum_value(MAV_CMD::GET_HOME_POSITION);
 
-			ret = client.call(cmd);
-			ret = cmd.response.success;
+			auto future = client->async_send_request(cmd);
+			auto wait_result = rclcpp::spin_until_future_complete(hp_nh, future);
+			ret = wait_result == rclcpp::executor::FutureReturnCode::SUCCESS;
 		}
-		catch (ros::InvalidNameException &ex) {
+		catch (rclcpp::exceptions::InvalidServiceNameError &ex) {
 			RCUTILS_LOG_ERROR_NAMED("home_position", "HP: %s", ex.what());
 		}
 
@@ -94,7 +94,7 @@ private:
 
 	void handle_home_position(const mavlink::mavlink_message_t *msg, mavlink::common::msg::HOME_POSITION &home_position)
 	{
-		poll_timer.stop();
+		poll_timer->cancel();
 
 		auto hp = std::make_shared<mavros_msgs::msg::HomePosition>();
 
@@ -102,7 +102,7 @@ private:
 		auto q = ftf::transform_orientation_ned_enu(ftf::mavlink_to_quaternion(home_position.q));
 		auto hp_approach_enu = ftf::transform_frame_ned_enu(Eigen::Vector3d(home_position.approach_x, home_position.approach_y, home_position.approach_z));
 
-		hp->header.stamp = rclcpp::Time::now();
+		hp->header.stamp = rclcpp::Clock().now();
 		hp->geo.latitude = home_position.latitude / 1E7;		// deg
 		hp->geo.longitude = home_position.longitude / 1E7;		// deg
 		hp->geo.altitude = home_position.altitude / 1E3 + m_uas->geoid_to_ellipsoid_height(&hp->geo);	// in meters
@@ -111,10 +111,10 @@ private:
 		tf::vectorEigenToMsg(hp_approach_enu, hp->approach);
 
 		RCUTILS_LOG_DEBUG_NAMED("home_position", "HP: Home lat %f, long %f, alt %f", hp->geo.latitude, hp->geo.longitude, hp->geo.altitude);
-		hp_pub.publish(hp);
+		hp_pub->publish(*hp);
 	}
 
-	void home_position_cb(const mavros_msgs::msg::HomePosition::ConstPtr &req)
+	void home_position_cb(const mavros_msgs::msg::HomePosition::SharedPtr req)
 	{
 		mavlink::common::msg::SET_HOME_POSITION hp {};
 
@@ -154,13 +154,13 @@ private:
 		UAS_FCU(m_uas)->send_message_ignore_drop(hp);
 	}
 
-	bool req_update_cb(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+	bool req_update_cb(const std_srvs::srv::Trigger::Request::SharedPtr req, std_srvs::srv::Trigger::Response::SharedPtr res)
 	{
-		res.success = call_get_home_position();
+		res->success = call_get_home_position();
 		return true;
 	}
 
-	void timeout_cb(const rclcpp::TimerEvent &event)
+	void timeout_cb()
 	{
 		RCUTILS_LOG_INFO_NAMED("home_position", "HP: requesting home position");
 		call_get_home_position();
@@ -169,9 +169,9 @@ private:
 	void connection_cb(bool connected) override
 	{
 		if (connected)
-			poll_timer.start();
+			poll_timer->reset();
 		else
-			poll_timer.stop();
+			poll_timer->cancel();
 	}
 };
 }	// namespace std_plugins

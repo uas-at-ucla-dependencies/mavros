@@ -38,7 +38,6 @@ namespace std_plugins {
 class LocalPositionPlugin : public plugin::PluginBase {
 public:
 	LocalPositionPlugin() : PluginBase(),
-		lp_nh("~local_position"),
 		tf_send(false),
 		has_local_position_ned(false),
 		has_local_position_ned_cov(false)
@@ -47,15 +46,16 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		lp_nh = uas_.mavros_node->create_sub_node("local_position"),
 
 		// header frame_id.
 		// default to map (world-fixed,ENU as per REP-105).
-		lp_nh.param<std::string>("frame_id", frame_id, "map");
+		frame_id = lp_nh->declare_parameter<std::string>("frame_id", "map");
 		// Important tf subsection
 		// Report the transform from world to base_link here.
-		lp_nh.param("tf/send", tf_send, false);
-		lp_nh.param<std::string>("tf/frame_id", tf_frame_id, "map");
-		lp_nh.param<std::string>("tf/child_frame_id", tf_child_frame_id, "base_link");
+		tf_send = lp_nh->declare_parameter("tf/send", false);
+		tf_frame_id = lp_nh->declare_parameter<std::string>("tf/frame_id", "map");
+		tf_child_frame_id = lp_nh->declare_parameter<std::string>("tf/child_frame_id", "base_link");
 
 		local_position = lp_nh->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 10);
 		local_position_cov = lp_nh->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("pose_cov", 10);
@@ -76,13 +76,13 @@ public:
 private:
 	rclcpp::Node::SharedPtr lp_nh;
 
-	rclcpp::Publisher<>::SharedPtr local_position;
-	rclcpp::Publisher<>::SharedPtr local_position_cov;
-	rclcpp::Publisher<>::SharedPtr local_velocity_local;
-	rclcpp::Publisher<>::SharedPtr local_velocity_body;
-	rclcpp::Publisher<>::SharedPtr local_velocity_cov;
-	rclcpp::Publisher<>::SharedPtr local_accel;
-	rclcpp::Publisher<>::SharedPtr local_odom;
+	rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr local_position;
+	rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr local_position_cov;
+	rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr local_velocity_local;
+	rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr local_velocity_body;
+	rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr local_velocity_cov;
+	rclcpp::Publisher<geometry_msgs::msg::AccelWithCovarianceStamped>::SharedPtr local_accel;
+	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr local_odom;
 
 	std::string frame_id;		//!< frame for Pose
 	std::string tf_frame_id;	//!< origin for TF
@@ -133,14 +133,14 @@ private:
 
 		// publish odom if we don't have LOCAL_POSITION_NED_COV
 		if (!has_local_position_ned_cov) {
-			local_odom.publish(odom);
+			local_odom->publish(*odom);
 		}
 
 		// publish pose always
 		auto pose = std::make_shared<geometry_msgs::msg::PoseStamped>();
 		pose->header = odom->header;
 		pose->pose = odom->pose.pose;
-		local_position.publish(pose);
+		local_position->publish(*pose);
 
 		// publish velocity always
 		// velocity in the body frame
@@ -149,7 +149,7 @@ private:
 		twist_body->header.frame_id = tf_child_frame_id;
 		twist_body->twist.linear = odom->twist.twist.linear;
 		twist_body->twist.angular = baselink_angular_msg;
-		local_velocity_body.publish(twist_body);
+		local_velocity_body->publish(*twist_body);
 
 		// velocity in the local frame
 		auto twist_local = std::make_shared<geometry_msgs::msg::TwistStamped>();
@@ -158,7 +158,7 @@ private:
 		tf::vectorEigenToMsg(enu_velocity, twist_local->twist.linear);
 		tf::vectorEigenToMsg(ftf::transform_frame_baselink_enu(ftf::to_eigen(baselink_angular_msg), enu_orientation),
 						twist_body->twist.angular);
-		local_velocity_local.publish(twist_local);
+		local_velocity_local->publish(*twist_local);
 
 		// publish tf
 		publish_tf(odom);
@@ -196,33 +196,33 @@ private:
 		// TODO: orientation + angular velocity covariances from ATTITUDE_QUATERION_COV
 
 		// publish odom always
-		local_odom.publish(odom);
+		local_odom->publish(*odom);
 
 		// publish pose_cov always
 		auto pose_cov = std::make_shared<geometry_msgs::msg::PoseWithCovarianceStamped>();
 		pose_cov->header = odom->header;
 		pose_cov->pose = odom->pose;
-		local_position_cov.publish(pose_cov);
+		local_position_cov->publish(*pose_cov);
 
 		// publish velocity_cov always
 		auto twist_cov = std::make_shared<geometry_msgs::msg::TwistWithCovarianceStamped>();
 		twist_cov->header.stamp = odom->header.stamp;
 		twist_cov->header.frame_id = odom->child_frame_id;
 		twist_cov->twist = odom->twist;
-		local_velocity_cov.publish(twist_cov);
+		local_velocity_cov->publish(*twist_cov);
 
 		// publish pose, velocity, tf if we don't have LOCAL_POSITION_NED
 		if (!has_local_position_ned) {
 			auto pose = std::make_shared<geometry_msgs::msg::PoseStamped>();
 			pose->header = odom->header;
 			pose->pose = odom->pose.pose;
-			local_position.publish(pose);
+			local_position->publish(*pose);
 
 			auto twist = std::make_shared<geometry_msgs::msg::TwistStamped>();
 			twist->header.stamp = odom->header.stamp;
 			twist->header.frame_id = odom->child_frame_id;
 			twist->twist = odom->twist.twist;
-			local_velocity_body.publish(twist);
+			local_velocity_body->publish(*twist);
 
 			// publish tf
 			publish_tf(odom);
@@ -239,7 +239,7 @@ private:
 		accel->accel.covariance[7] = pos_ned.covariance[42];	// ay
 		accel->accel.covariance[14] = pos_ned.covariance[44];	// az
 
-		local_accel.publish(accel);
+		local_accel->publish(*accel);
 	}
 };
 }	// namespace std_plugins

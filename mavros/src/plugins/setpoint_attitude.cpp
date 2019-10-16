@@ -192,14 +192,14 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void transform_cb(const geometry_msgs::msg::TransformStamped &transform, const mavros_msgs::msg::Thrust::ConstPtr &thrust_msg) {
+	void transform_cb(const geometry_msgs::msg::TransformStamped &transform, const mavros_msgs::msg::Thrust::SharedPtr thrust_msg) {
 		Eigen::Affine3d tr;
 		tf::transformMsgToEigen(transform.transform, tr);
 
 		send_attitude_quaternion(transform.header.stamp, tr, thrust_msg->thrust);
 	}
 
-	void attitude_pose_cb(const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg, const mavros_msgs::msg::Thrust::ConstPtr &thrust_msg) {
+	void attitude_pose_cb(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg, const mavros_msgs::msg::Thrust::SharedPtr thrust_msg) {
 		Eigen::Affine3d tr;
 		tf::poseMsgToEigen(pose_msg->pose, tr);
 
@@ -207,7 +207,7 @@ private:
 			send_attitude_quaternion(pose_msg->header.stamp, tr, thrust_msg->thrust);
 	}
 
-	void attitude_twist_cb(const geometry_msgs::msg::TwistStamped::ConstPtr &req, const mavros_msgs::msg::Thrust::ConstPtr &thrust_msg) {
+	void attitude_twist_cb(const geometry_msgs::msg::TwistStamped::SharedPtr req, const mavros_msgs::msg::Thrust::SharedPtr thrust_msg) {
 		Eigen::Vector3d ang_vel;
 		tf::vectorMsgToEigen(req->twist.angular, ang_vel);
 

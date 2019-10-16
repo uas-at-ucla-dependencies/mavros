@@ -91,7 +91,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void accel_cb(const geometry_msgs::msg::Vector3Stamped::ConstPtr &req) {
+	void accel_cb(const geometry_msgs::msg::Vector3Stamped::SharedPtr req) {
 		Eigen::Vector3d accel_enu;
 
 		tf::vectorMsgToEigen(req->vector, accel_enu);

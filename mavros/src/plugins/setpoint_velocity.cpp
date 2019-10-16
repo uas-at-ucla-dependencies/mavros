@@ -113,7 +113,7 @@ private:
 
 	/* -*- callbacks -*- */
 
-	void vel_cb(const geometry_msgs::msg::TwistStamped::ConstPtr &req) {
+	void vel_cb(const geometry_msgs::msg::TwistStamped::SharedPtr req) {
 		Eigen::Vector3d vel_enu;
 
 		tf::vectorMsgToEigen(req->twist.linear, vel_enu);
@@ -121,7 +121,7 @@ private:
 					req->twist.angular.z);
 	}
 
-	void vel_unstamped_cb(const geometry_msgs::msg::Twist::ConstPtr &req) {
+	void vel_unstamped_cb(const geometry_msgs::msg::Twist::SharedPtr req) {
 		Eigen::Vector3d vel_enu;
 
 		tf::vectorMsgToEigen(req->linear, vel_enu);
@@ -129,7 +129,7 @@ private:
 					req->angular.z);
 	}
 
-	bool set_mav_frame_cb(mavros_msgs::msg::SetMavFrame::Request &req, mavros_msgs::msg::SetMavFrame::Response &res)
+	bool set_mav_frame_cb(mavros_msgs::msg::SetMavFrame::Request::SharedPtr req, mavros_msgs::msg::SetMavFrame::Response::SharedPtr res)
 	{
 		mav_frame = static_cast<MAV_FRAME>(req.mav_frame);
 		const std::string mav_frame_str = utils::to_string(mav_frame);

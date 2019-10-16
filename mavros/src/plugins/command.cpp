@@ -63,7 +63,7 @@ public:
 	{
 		PluginBase::initialize(uas_);
 		
-		cmd_nh = uas_.mavros_node->create_sub_node("~cmd");
+		cmd_nh = uas_.mavros_node->create_sub_node("cmd");
 
 		double command_ack_timeout;
 
@@ -72,14 +72,14 @@ public:
 
 		command_ack_timeout_dt = rclcpp::Duration(command_ack_timeout);
 
-		command_long_srv = cmd_nh->create_service<mavros_msgs::srv::CommandLong>("command", std::bind(&CommandPlugin::command_long_cb, this, std::placeholders::_1));
-		command_int_srv = cmd_nh->create_service<mavros_msgs::srv::CommandInt>("command_int", std::bind(&CommandPlugin::command_int_cb, this, std::placeholders::_1));
-		arming_srv = cmd_nh->create_service<mavros_msgs::srv::CommandBool>("arming", std::bind(&CommandPlugin::arming_cb, this, std::placeholders::_1));
-		set_home_srv = cmd_nh->create_service<mavros_msgs::srv::CommandHome>("set_home", std::bind(&CommandPlugin::set_home_cb, this, std::placeholders::_1));
-		takeoff_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("takeoff", std::bind(&CommandPlugin::takeoff_cb, this, std::placeholders::_1));
-		land_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("land", std::bind(&CommandPlugin::land_cb, this, std::placeholders::_1));
-		trigger_control_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerControl>("trigger_control", std::bind(&CommandPlugin::trigger_control_cb, this, std::placeholders::_1));
-		trigger_interval_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerInterval>("trigger_interval", std::bind(&CommandPlugin::trigger_interval_cb, this, std::placeholders::_1));
+		command_long_srv = cmd_nh->create_service<mavros_msgs::srv::CommandLong>("command", std::bind(&CommandPlugin::command_long_cb, this, std::placeholders::_1, std::placeholders::_2));
+		command_int_srv = cmd_nh->create_service<mavros_msgs::srv::CommandInt>("command_int", std::bind(&CommandPlugin::command_int_cb, this, std::placeholders::_1, std::placeholders::_2));
+		arming_srv = cmd_nh->create_service<mavros_msgs::srv::CommandBool>("arming", std::bind(&CommandPlugin::arming_cb, this, std::placeholders::_1, std::placeholders::_2));
+		set_home_srv = cmd_nh->create_service<mavros_msgs::srv::CommandHome>("set_home", std::bind(&CommandPlugin::set_home_cb, this, std::placeholders::_1, std::placeholders::_2));
+		takeoff_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("takeoff", std::bind(&CommandPlugin::takeoff_cb, this, std::placeholders::_1, std::placeholders::_2));
+		land_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("land", std::bind(&CommandPlugin::land_cb, this, std::placeholders::_1, std::placeholders::_2));
+		trigger_control_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerControl>("trigger_control", std::bind(&CommandPlugin::trigger_control_cb, this, std::placeholders::_1, std::placeholders::_2));
+		trigger_interval_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerInterval>("trigger_interval", std::bind(&CommandPlugin::trigger_interval_cb, this, std::placeholders::_1, std::placeholders::_2));
 	}
 
 	Subscriptions get_subscriptions()
@@ -296,106 +296,110 @@ private:
 
 	/* -*- callbacks -*- */
 
-	bool command_long_cb(mavros_msgs::srv::CommandLong::Request &req,
-		mavros_msgs::srv::CommandLong::Response &res)
+	void command_long_cb(const mavros_msgs::srv::CommandLong::Request::SharedPtr req,
+		mavros_msgs::srv::CommandLong::Response::SharedPtr res)
 	{
-		return send_command_long_and_wait(req.broadcast,
-			req.command, req.confirmation,
-			req.param1, req.param2,
-			req.param3, req.param4,
-			req.param5, req.param6,
-			req.param7,
-			res.success, res.result);
+		send_command_long_and_wait(req->broadcast,
+			req->command, req->confirmation,
+			req->param1, req->param2,
+			req->param3, req->param4,
+			req->param5, req->param6,
+			req->param7,
+			res->success, res->result);
 	}
 
-	bool command_int_cb(mavros_msgs::srv::CommandInt::Request &req,
-		mavros_msgs::srv::CommandInt::Response &res)
+	void command_int_cb(const mavros_msgs::srv::CommandInt::Request::SharedPtr req,
+		mavros_msgs::srv::CommandInt::Response::SharedPtr res)
 	{
-		return send_command_int(req.broadcast,
-			req.frame, req.command,
-			req.current, req.autocontinue,
-			req.param1, req.param2,
-			req.param3, req.param4,
-			req.x, req.y, req.z,
-			res.success);
+		send_command_int(req->broadcast,
+			req->frame, req->command,
+			req->current, req->autocontinue,
+			req->param1, req->param2,
+			req->param3, req->param4,
+			req->x, req->y, req->z,
+			res->success);
 	}
 
-	bool arming_cb(mavros_msgs::srv::CommandBool::Request &req,
-		mavros_msgs::srv::CommandBool::Response &res)
+	void arming_cb(const mavros_msgs::srv::CommandBool::Request::SharedPtr req,
+		mavros_msgs::srv::CommandBool::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_CMD;
-		return send_command_long_and_wait(false,
+		send_command_long_and_wait(false,
 			enum_value(MAV_CMD::COMPONENT_ARM_DISARM), 1,
-			(req.value) ? 1.0 : 0.0,
+			(req->value) ? 1.0 : 0.0,
 			0, 0, 0, 0, 0, 0,
-			res.success, res.result);
+			res->success, res->result);
 	}
 
-	bool set_home_cb(mavros_msgs::srv::CommandHome::Request &req,
-		mavros_msgs::srv::CommandHome::Response &res)
+	void set_home_cb(const mavros_msgs::srv::CommandHome::Request::SharedPtr req,
+		mavros_msgs::srv::CommandHome::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_CMD;
-		return send_command_long_and_wait(false,
+		send_command_long_and_wait(false,
 			enum_value(MAV_CMD::DO_SET_HOME), 1,
-			(req.current_gps) ? 1.0 : 0.0,
-			0, 0, 0, req.latitude, req.longitude, req.altitude,
-			res.success, res.result);
+			(req->current_gps) ? 1.0 : 0.0,
+			0, 0, 0, req->latitude, req->longitude, req->altitude,
+			res->success, res->result);
 	}
 
-	bool takeoff_cb(mavros_msgs::srv::CommandTOL::Request &req,
-		mavros_msgs::srv::CommandTOL::Response &res)
+	void takeoff_cb(const mavros_msgs::srv::CommandTOL::Request::SharedPtr req,
+		mavros_msgs::srv::CommandTOL::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_CMD;
-		return send_command_long_and_wait(false,
+		send_command_long_and_wait(false,
 			enum_value(MAV_CMD::NAV_TAKEOFF), 1,
-			req.min_pitch,
+			req->min_pitch,
 			0, 0,
-			req.yaw,
-			req.latitude, req.longitude, req.altitude,
-			res.success, res.result);
+			req->yaw,
+			req->latitude, req->longitude, req->altitude,
+			res->success, res->result);
 	}
 
-	bool land_cb(mavros_msgs::srv::CommandTOL::Request &req,
-		mavros_msgs::srv::CommandTOL::Response &res)
+	void land_cb(const mavros_msgs::srv::CommandTOL::Request::SharedPtr req,
+		mavros_msgs::srv::CommandTOL::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_CMD;
-		return send_command_long_and_wait(false,
+		send_command_long_and_wait(false,
 			enum_value(MAV_CMD::NAV_LAND), 1,
 			0, 0, 0,
-			req.yaw,
-			req.latitude, req.longitude, req.altitude,
-			res.success, res.result);
+			req->yaw,
+			req->latitude, req->longitude, req->altitude,
+			res->success, res->result);
 	}
 
-	bool trigger_control_cb(mavros_msgs::srv::CommandTriggerControl::Request &req,
-		mavros_msgs::srv::CommandTriggerControl::Response &res)
+	void trigger_control_cb(const mavros_msgs::srv::CommandTriggerControl::Request::SharedPtr req,
+		mavros_msgs::srv::CommandTriggerControl::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_CMD;
-		return send_command_long_and_wait(false,
+		send_command_long_and_wait(false,
 			enum_value(MAV_CMD::DO_TRIGGER_CONTROL), 1,
-			(req.trigger_enable) ? 1.0 : 0.0,
-			(req.sequence_reset) ? 1.0 : 0.0,
-			(req.trigger_pause) ? 1.0 : 0.0,
+			(req->trigger_enable) ? 1.0 : 0.0,
+			(req->sequence_reset) ? 1.0 : 0.0,
+			(req->trigger_pause) ? 1.0 : 0.0,
 			0, 0, 0, 0,
-			res.success, res.result);
+			res->success, res->result);
 	}
 
-	bool trigger_interval_cb(mavros_msgs::srv::CommandTriggerInterval::Request &req,
-		mavros_msgs::srv::CommandTriggerInterval::Response &res)
+	void trigger_interval_cb(const mavros_msgs::srv::CommandTriggerInterval::Request::SharedPtr req,
+		mavros_msgs::srv::CommandTriggerInterval::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_CMD;
 
 		// trigger interval can only be set when triggering is disabled
-		return send_command_long_and_wait(false,
+		send_command_long_and_wait(false,
 			enum_value(MAV_CMD::DO_SET_CAM_TRIGG_INTERVAL), 1,
-			req.cycle_time,
-			req.integration_time,
+			req->cycle_time,
+			req->integration_time,
 			0, 0, 0, 0, 0,
-			res.success, res.result);
+			res->success, res->result);
 	}
 };
+
+constexpr double CommandPlugin::ACK_TIMEOUT_DEFAULT;
+
 }	// namespace std_plugins
 }	// namespace mavros
+
 
 #include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(mavros::std_plugins::CommandPlugin, mavros::plugin::PluginBase)

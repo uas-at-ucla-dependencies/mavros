@@ -187,17 +187,17 @@ public:
 			std::string &_frame_id = static_cast<D *>(this)->tf_frame_id;
 			std::string &_child_frame_id = static_cast<D *>(this)->tf_child_frame_id;
 
-			ros::Rate rate(static_cast<D *>(this)->tf_rate);
-			while (ros::ok()) {
+			rclcpp::Rate rate(static_cast<D *>(this)->tf_rate);
+			while (rclcpp::ok()) {
 				// Wait up to 3s for transform
-				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0))) {
+				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, rclcpp::Time(0), rclcpp::Duration(3.0))) {
 					try {
 						auto transform = m_uas_->tf2_buffer.lookupTransform(
-								_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0));
+								_frame_id, _child_frame_id, rclcpp::Time(0), rclcpp::Duration(3.0));
 						tf_transform_cb(transform);
 					}
 					catch (tf2::LookupException &ex) {
-						ROS_ERROR_NAMED("tf2_buffer", "%s: %s", tf_thd_name.c_str(), ex.what());
+						RCUTILS_LOG_ERROR_NAMED("tf2_buffer", "%s: %s", tf_thd_name.c_str(), ex.what());
 					}
 				}
 				rate.sleep();
@@ -220,24 +220,24 @@ public:
 			mavconn::utils::set_this_thread_name("%s", tf_thd_name.c_str());
 
 			mavros::UAS *m_uas_ = static_cast<D *>(this)->m_uas;
-			ros::NodeHandle &_sp_nh = static_cast<D *>(this)->sp_nh;
+			rclcpp::Node::SharedPtr &_sp_nh = static_cast<D *>(this)->sp_nh;
 			std::string &_frame_id = static_cast<D *>(this)->tf_frame_id;
 			std::string &_child_frame_id = static_cast<D *>(this)->tf_child_frame_id;
 
 			tf2_ros::MessageFilter<T> tf2_filter(topic_sub, m_uas_->tf2_buffer, _frame_id, 10, _sp_nh);
 
-			ros::Rate rate(static_cast<D *>(this)->tf_rate);
-			while (ros::ok()) {
+			rclcpp::Rate rate(static_cast<D *>(this)->tf_rate);
+			while (rclcpp::ok()) {
 				// Wait up to 3s for transform
-				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0))) {
+				if (m_uas_->tf2_buffer.canTransform(_frame_id, _child_frame_id, rclcpp::Time(0), rclcpp::Duration(3.0))) {
 					try {
 						auto transform = m_uas_->tf2_buffer.lookupTransform(
-								_frame_id, _child_frame_id, rclcpp::Time(0), ros::Duration(3.0));
+								_frame_id, _child_frame_id, rclcpp::Time(0), rclcpp::Duration(3.0));
 
 						tf2_filter.registerCallback(std::bind(cbp, static_cast<D *>(this), transform, _1));
 					}
 					catch (tf2::LookupException &ex) {
-						ROS_ERROR_NAMED("tf2_buffer", "%s: %s", tf_thd_name.c_str(), ex.what());
+						RCUTILS_LOG_ERROR_NAMED("tf2_buffer", "%s: %s", tf_thd_name.c_str(), ex.what());
 					}
 				}
 				rate.sleep();

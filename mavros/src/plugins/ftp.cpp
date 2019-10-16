@@ -217,7 +217,7 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
-		ftp_nh = uas_.mavros_node->create_sub_node("~ftp");
+		ftp_nh = uas_.mavros_node->create_sub_node("ftp");
 
 		// since C++ generator do not produce field length defs make check explicit.
 		FTPRequest r;
@@ -225,18 +225,18 @@ public:
 			RCUTILS_LOG_FATAL("FTP bad data size");
 		}
 
-		list_srv = ftp_nh->create_service<mavros_msgs::srv::FileList>("list", std::bind(&FTPPlugin::list_cb, this, std::placeholders::_1));
-		open_srv = ftp_nh->create_service<mavros_msgs::srv::FileOpen>("open", std::bind(&FTPPlugin::open_cb, this, std::placeholders::_1));
-		close_srv = ftp_nh->create_service<mavros_msgs::srv::FileClose>("close", std::bind(&FTPPlugin::close_cb, this, std::placeholders::_1));
-		read_srv = ftp_nh->create_service<mavros_msgs::srv::FileRead>("read", std::bind(&FTPPlugin::read_cb, this, std::placeholders::_1));
-		write_srv = ftp_nh->create_service<mavros_msgs::srv::FileWrite>("write", std::bind(&FTPPlugin::write_cb, this, std::placeholders::_1));
-		mkdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileMakeDir>("mkdir", std::bind(&FTPPlugin::mkdir_cb, this, std::placeholders::_1));
-		rmdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemoveDir>("rmdir", std::bind(&FTPPlugin::rmdir_cb, this, std::placeholders::_1));
-		remove_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemove>("remove", std::bind(&FTPPlugin::remove_cb, this, std::placeholders::_1));
-		truncate_srv = ftp_nh->create_service<mavros_msgs::srv::FileTruncate>("truncate", std::bind(&FTPPlugin::truncate_cb, this, std::placeholders::_1));
-		reset_srv = ftp_nh->create_service<std_srvs::srv::Empty>("reset", std::bind(&FTPPlugin::reset_cb, this, std::placeholders::_1));
-		rename_srv = ftp_nh->create_service<mavros_msgs::srv::FileRename>("rename", std::bind(&FTPPlugin::rename_cb, this, std::placeholders::_1));
-		checksum_srv = ftp_nh->create_service<mavros_msgs::srv::FileChecksum>("checksum", std::bind(&FTPPlugin::checksum_cb, this, std::placeholders::_1));
+		list_srv = ftp_nh->create_service<mavros_msgs::srv::FileList>("list", std::bind(&FTPPlugin::list_cb, this, std::placeholders::_1, std::placeholders::_2));
+		open_srv = ftp_nh->create_service<mavros_msgs::srv::FileOpen>("open", std::bind(&FTPPlugin::open_cb, this, std::placeholders::_1, std::placeholders::_2));
+		close_srv = ftp_nh->create_service<mavros_msgs::srv::FileClose>("close", std::bind(&FTPPlugin::close_cb, this, std::placeholders::_1, std::placeholders::_2));
+		read_srv = ftp_nh->create_service<mavros_msgs::srv::FileRead>("read", std::bind(&FTPPlugin::read_cb, this, std::placeholders::_1, std::placeholders::_2));
+		write_srv = ftp_nh->create_service<mavros_msgs::srv::FileWrite>("write", std::bind(&FTPPlugin::write_cb, this, std::placeholders::_1, std::placeholders::_2));
+		mkdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileMakeDir>("mkdir", std::bind(&FTPPlugin::mkdir_cb, this, std::placeholders::_1, std::placeholders::_2));
+		rmdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemoveDir>("rmdir", std::bind(&FTPPlugin::rmdir_cb, this, std::placeholders::_1, std::placeholders::_2));
+		remove_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemove>("remove", std::bind(&FTPPlugin::remove_cb, this, std::placeholders::_1, std::placeholders::_2));
+		truncate_srv = ftp_nh->create_service<mavros_msgs::srv::FileTruncate>("truncate", std::bind(&FTPPlugin::truncate_cb, this, std::placeholders::_1, std::placeholders::_2));
+		reset_srv = ftp_nh->create_service<std_srvs::srv::Empty>("reset", std::bind(&FTPPlugin::reset_cb, this, std::placeholders::_1, std::placeholders::_2));
+		rename_srv = ftp_nh->create_service<mavros_msgs::srv::FileRename>("rename", std::bind(&FTPPlugin::rename_cb, this, std::placeholders::_1, std::placeholders::_2));
+		checksum_srv = ftp_nh->create_service<mavros_msgs::srv::FileChecksum>("checksum", std::bind(&FTPPlugin::checksum_cb, this, std::placeholders::_1, std::placeholders::_2));
 	}
 
 	Subscriptions get_subscriptions()
@@ -599,7 +599,7 @@ private:
 	/// Send any command with string payload (usually file/dir path)
 	inline void send_any_path_command(FTPRequest::Opcode op, const std::string &debug_msg, std::string &path, uint32_t offset)
 	{
-		ROS_DEBUG_STREAM_NAMED("ftp", "FTP:m: " << debug_msg << path << " off: " << offset);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: %s%s off: %u", debug_msg.c_str(), path.c_str(), offset);
 		FTPRequest req(op);
 		req.header()->offset = offset;
 		req.set_data_string(path);
@@ -624,7 +624,7 @@ private:
 
 	void send_terminate_command(uint32_t session)
 	{
-		ROS_DEBUG_STREAM_NAMED("ftp", "FTP:m: kCmdTerminateSession: " << session);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: kCmdTerminateSession: %u", session);
 		FTPRequest req(FTPRequest::kCmdTerminateSession, session);
 		req.header()->offset = 0;
 		req.header()->size = 0;
@@ -634,7 +634,7 @@ private:
 	void send_read_command()
 	{
 		// read operation always try read DATA_MAXSZ block (hdr->size ignored)
-		ROS_DEBUG_STREAM_NAMED("ftp", "FTP:m: kCmdReadFile: " << active_session << " off: " << read_offset);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: kCmdReadFile: %u off: %u", active_session, read_offset);
 		FTPRequest req(FTPRequest::kCmdReadFile, active_session);
 		req.header()->offset = read_offset;
 		req.header()->size = 0 /* FTPRequest::DATA_MAXSZ */;
@@ -644,7 +644,7 @@ private:
 	void send_write_command(const size_t bytes_to_copy)
 	{
 		// write chunk from write_buffer [write_it..bytes_to_copy]
-		ROS_DEBUG_STREAM_NAMED("ftp", "FTP:m: kCmdWriteFile: " << active_session << " off: " << write_offset << " sz: " << bytes_to_copy);
+		RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:m: kCmdWriteFile: %u off: %u sz: %z", active_session, write_offset, bytes_to_copy);
 		FTPRequest req(FTPRequest::kCmdWriteFile, active_session);
 		req.header()->offset = write_offset;
 		req.header()->size = bytes_to_copy;
@@ -671,7 +671,7 @@ private:
 		}
 
 		send_any_path_command(FTPRequest::kCmdRename, "kCmdRename: ", paths, 0);
-		return true;
+		
 	}
 
 	void send_truncate_command(std::string &path, size_t length) {
@@ -694,14 +694,14 @@ private:
 
 	void add_dirent(const char *ptr, size_t slen)
 	{
-		mavros_msgs::srv::FileEntry ent;
+		mavros_msgs::msg::FileEntry ent;
 		ent.size = 0;
 
 		if (ptr[0] == FTPRequest::DIRENT_DIR) {
 			ent.name.assign(ptr + 1, slen - 1);
-			ent.type = mavros_msgs::srv::FileEntry::TYPE_DIRECTORY;
+			ent.type = mavros_msgs::msg::FileEntry::TYPE_DIRECTORY;
 
-			ROS_DEBUG_STREAM_NAMED("ftp", "FTP:List Dir: " << ent.name);
+			RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:List Dir: %s", ent.name.c_str());
 		}
 		else {
 			// ptr[0] == FTPRequest::DIRENT_FILE
@@ -709,7 +709,7 @@ private:
 
 			auto sep_it = std::find(name_size.begin(), name_size.end(), '\t');
 			ent.name.assign(name_size.begin(), sep_it);
-			ent.type = mavros_msgs::srv::FileEntry::TYPE_FILE;
+			ent.type = mavros_msgs::msg::FileEntry::TYPE_FILE;
 
 			if (sep_it != name_size.end()) {
 				name_size.erase(name_size.begin(), sep_it + 1);
@@ -717,7 +717,7 @@ private:
 					ent.size = std::stoi(name_size);
 			}
 
-			ROS_DEBUG_STREAM_NAMED("ftp", "FTP:List File: " << ent.name << " SZ: " << ent.size);
+			RCUTILS_LOG_DEBUG_NAMED("ftp", "FTP:List File: %s SZ: %llu", ent.name.c_str(), ent.size);
 		}
 
 		list_entries.push_back(ent);
@@ -744,11 +744,11 @@ private:
 		open_size = 0;
 		op_state = OP::OPEN;
 
-		if (mode == mavros_msgs::srv::FileOpenRequest::MODE_READ)
+		if (mode == mavros_msgs::srv::FileOpen_Request::MODE_READ)
 			send_open_ro_command();
-		else if (mode == mavros_msgs::srv::FileOpenRequest::MODE_WRITE)
+		else if (mode == mavros_msgs::srv::FileOpen_Request::MODE_WRITE)
 			send_open_wo_command();
-		else if (mode == mavros_msgs::srv::FileOpenRequest::MODE_CREATE)
+		else if (mode == mavros_msgs::srv::FileOpen_Request::MODE_CREATE)
 			send_create_command();
 		else {
 			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Unsupported open mode: %d", mode);
@@ -757,7 +757,7 @@ private:
 			return false;
 		}
 
-		return true;
+		
 	}
 
 	bool close_file(std::string &path)
@@ -772,7 +772,7 @@ private:
 		op_state = OP::ACK;
 		send_terminate_command(it->second);
 		session_file_map.erase(it);
-		return true;
+		
 	}
 
 	void read_file_end() {
@@ -801,7 +801,7 @@ private:
 		}
 
 		send_read_command();
-		return true;
+		
 	}
 
 	void write_file_end() {
@@ -825,7 +825,7 @@ private:
 		write_it = write_buffer.begin();
 
 		send_write_command(write_bytes_to_copy());
-		return true;
+		
 	}
 
 	void remove_file(std::string &path) {
@@ -894,170 +894,167 @@ private:
 #define SERVICE_IDLE_CHECK()				\
 	if (op_state != OP::IDLE) {			\
 		RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: Busy");	\
-		return false;				\
+		return;				\
 	}
 
-	bool list_cb(mavros_msgs::srv::FileList::Request &req,
-			mavros_msgs::srv::FileList::Response &res)
+	void list_cb(const mavros_msgs::srv::FileList::Request::SharedPtr req,
+			mavros_msgs::srv::FileList::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		list_directory(req.dir_path);
-		res.success = wait_completion(LIST_TIMEOUT_MS);
-		res.r_errno = r_errno;
-		if (res.success) {
-			res.list = std::move(list_entries);
+		list_directory(req->dir_path);
+		res->success = wait_completion(LIST_TIMEOUT_MS);
+		res->r_errno = r_errno;
+		if (res->success) {
+			res->list = std::move(list_entries);
 			list_entries.clear();	// not shure that it's needed
 		}
-
-		return true;
 	}
 
-	bool open_cb(mavros_msgs::srv::FileOpen::Request &req,
-			mavros_msgs::srv::FileOpen::Response &res)
+	void open_cb(const mavros_msgs::srv::FileOpen::Request::SharedPtr req,
+			mavros_msgs::srv::FileOpen::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
 		// only one session per file
-		auto it = session_file_map.find(req.file_path);
+		auto it = session_file_map.find(req->file_path);
 		if (it != session_file_map.end()) {
 			RCUTILS_LOG_ERROR_NAMED("ftp", "FTP: File %s: already opened",
-					req.file_path.c_str());
-			return false;
+					req->file_path.c_str());
+			res->success = false;
+			return;
 		}
 
-		res.success = open_file(req.file_path, req.mode);
-		if (res.success) {
-			res.success = wait_completion(OPEN_TIMEOUT_MS);
-			res.size = open_size;
+		res->success = open_file(req->file_path, req->mode);
+		if (res->success) {
+			res->success = wait_completion(OPEN_TIMEOUT_MS);
+			res->size = open_size;
 		}
-		res.r_errno = r_errno;
-
-		return true;
+		res->r_errno = r_errno;
 	}
 
-	bool close_cb(mavros_msgs::srv::FileClose::Request &req,
-			mavros_msgs::srv::FileClose::Response &res)
+	void close_cb(const mavros_msgs::srv::FileClose::Request::SharedPtr req,
+			mavros_msgs::srv::FileClose::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		res.success = close_file(req.file_path);
-		if (res.success) {
-			res.success = wait_completion(OPEN_TIMEOUT_MS);
+		res->success = close_file(req->file_path);
+		if (res->success) {
+			res->success = wait_completion(OPEN_TIMEOUT_MS);
 		}
-		res.r_errno = r_errno;
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool read_cb(mavros_msgs::srv::FileRead::Request &req,
-			mavros_msgs::srv::FileRead::Response &res)
+	void read_cb(const mavros_msgs::srv::FileRead::Request::SharedPtr req,
+			mavros_msgs::srv::FileRead::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		res.success = read_file(req.file_path, req.offset, req.size);
-		if (res.success)
-			res.success = wait_completion(compute_rw_timeout(req.size));
-		if (res.success) {
-			res.data = std::move(read_buffer);
+		res->success = read_file(req->file_path, req->offset, req->size);
+		if (res->success)
+			res->success = wait_completion(compute_rw_timeout(req->size));
+		if (res->success) {
+			res->data = std::move(read_buffer);
 			read_buffer.clear();	// same as for list_entries
 		}
-		res.r_errno = r_errno;
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool write_cb(mavros_msgs::srv::FileWrite::Request &req,
-			mavros_msgs::srv::FileWrite::Response &res)
+	void write_cb(const mavros_msgs::srv::FileWrite::Request::SharedPtr req,
+			mavros_msgs::srv::FileWrite::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		const size_t data_size = req.data.size();
-		res.success = write_file(req.file_path, req.offset, req.data);
-		if (res.success) {
-			res.success = wait_completion(compute_rw_timeout(data_size));
+		const size_t data_size = req->data.size();
+		res->success = write_file(req->file_path, req->offset, req->data);
+		if (res->success) {
+			res->success = wait_completion(compute_rw_timeout(data_size));
 		}
 		write_buffer.clear();
-		res.r_errno = r_errno;
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool remove_cb(mavros_msgs::srv::FileRemove::Request &req,
-			mavros_msgs::srv::FileRemove::Response &res)
+	void remove_cb(const mavros_msgs::srv::FileRemove::Request::SharedPtr req,
+			mavros_msgs::srv::FileRemove::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		remove_file(req.file_path);
-		res.success = wait_completion(OPEN_TIMEOUT_MS);
-		res.r_errno = r_errno;
+		remove_file(req->file_path);
+		res->success = wait_completion(OPEN_TIMEOUT_MS);
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool rename_cb(mavros_msgs::srv::FileRename::Request &req,
-			mavros_msgs::srv::FileRename::Response &res)
+	void rename_cb(const mavros_msgs::srv::FileRename::Request::SharedPtr req,
+			mavros_msgs::srv::FileRename::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		res.success = rename_(req.old_path, req.new_path);
-		if (res.success) {
-			res.success = wait_completion(OPEN_TIMEOUT_MS);
+		res->success = rename_(req->old_path, req->new_path);
+		if (res->success) {
+			res->success = wait_completion(OPEN_TIMEOUT_MS);
 		}
-		res.r_errno = r_errno;
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
 
-	bool truncate_cb(mavros_msgs::srv::FileTruncate::Request &req,
-			mavros_msgs::srv::FileTruncate::Response &res)
+	void truncate_cb(const mavros_msgs::srv::FileTruncate::Request::SharedPtr req,
+			mavros_msgs::srv::FileTruncate::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
 		// Note: emulated truncate() can take a while
-		truncate_file(req.file_path, req.length);
-		res.success = wait_completion(LIST_TIMEOUT_MS * 5);
-		res.r_errno = r_errno;
+		truncate_file(req->file_path, req->length);
+		res->success = wait_completion(LIST_TIMEOUT_MS * 5);
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool mkdir_cb(mavros_msgs::srv::FileMakeDir::Request &req,
-			mavros_msgs::srv::FileMakeDir::Response &res)
+	void mkdir_cb(const mavros_msgs::srv::FileMakeDir::Request::SharedPtr req,
+			mavros_msgs::srv::FileMakeDir::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		create_directory(req.dir_path);
-		res.success = wait_completion(OPEN_TIMEOUT_MS);
-		res.r_errno = r_errno;
+		create_directory(req->dir_path);
+		res->success = wait_completion(OPEN_TIMEOUT_MS);
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool rmdir_cb(mavros_msgs::srv::FileRemoveDir::Request &req,
-			mavros_msgs::srv::FileRemoveDir::Response &res)
+	void rmdir_cb(const mavros_msgs::srv::FileRemoveDir::Request::SharedPtr req,
+			mavros_msgs::srv::FileRemoveDir::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		remove_directory(req.dir_path);
-		res.success = wait_completion(OPEN_TIMEOUT_MS);
-		res.r_errno = r_errno;
+		remove_directory(req->dir_path);
+		res->success = wait_completion(OPEN_TIMEOUT_MS);
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
-	bool checksum_cb(mavros_msgs::srv::FileChecksum::Request &req,
-			mavros_msgs::srv::FileChecksum::Response &res)
+	void checksum_cb(const mavros_msgs::srv::FileChecksum::Request::SharedPtr req,
+			mavros_msgs::srv::FileChecksum::Response::SharedPtr res)
 	{
 		SERVICE_IDLE_CHECK();
 
-		checksum_crc32_file(req.file_path);
-		res.success = wait_completion(LIST_TIMEOUT_MS);
-		res.crc32 = checksum_crc32;
-		res.r_errno = r_errno;
+		checksum_crc32_file(req->file_path);
+		res->success = wait_completion(LIST_TIMEOUT_MS);
+		res->crc32 = checksum_crc32;
+		res->r_errno = r_errno;
 
-		return true;
+		
 	}
 
 #undef SERVICE_IDLE_CHECK
@@ -1066,11 +1063,10 @@ private:
 	 * @brief Reset communication on both sides.
 	 * @note This call break other calls, so use carefully.
 	 */
-	bool reset_cb(std_srvs::srv::Empty::Request &req,
-			std_srvs::srv::Empty::Response &res)
+	void reset_cb(const std_srvs::srv::Empty::Request::SharedPtr req,
+			std_srvs::srv::Empty::Response::SharedPtr res)
 	{
 		send_reset();
-		return true;
 	}
 };
 }	// namespace std_plugins

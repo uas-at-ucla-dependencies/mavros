@@ -12,11 +12,9 @@
  */
 
 #include <mavros/mavros.h>
-#include <rcl/rcl.h>
 
 int main(int argc, char *argv[])
 {
-	rcutils_logging_set_default_logger_level(RCUTILS_LOG_SEVERITY_DEBUG);
 	rclcpp::init(argc, argv);
 
 	auto mavros = mavros::MavRos::make_shared();

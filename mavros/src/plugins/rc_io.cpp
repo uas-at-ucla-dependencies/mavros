@@ -28,7 +28,6 @@ namespace std_plugins {
 class RCIOPlugin : public plugin::PluginBase {
 public:
 	RCIOPlugin() : PluginBase(),
-		rc_nh("~rc"),
 		raw_rc_in(0),
 		raw_rc_out(0),
 		has_rc_channels_msg(false)
@@ -37,10 +36,11 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		rc_nh = uas_.mavros_node->create_sub_node("rc"),
 
 		rc_in_pub = rc_nh->create_publisher<mavros_msgs::msg::RCIn>("in", 10);
 		rc_out_pub = rc_nh->create_publisher<mavros_msgs::msg::RCOut>("out", 10);
-		override_sub = rc_nh->create_subscription("override", 10, std::bind(&RCIOPlugin, this, std::placeholders::_1));
+		override_sub = rc_nh->create_subscription<mavros_msgs::msg::OverrideRCIn>("override", 10, std::bind(&RCIOPlugin::override_cb, this, std::placeholders::_1));
 
 		enable_connection_cb();
 	};
@@ -62,9 +62,9 @@ private:
 	std::vector<uint16_t> raw_rc_out;
 	std::atomic<bool> has_rc_channels_msg;
 
-	rclcpp::Publisher<>::SharedPtr rc_in_pub;
-	rclcpp::Publisher<>::SharedPtr rc_out_pub;
-	rclcpp::Subscription<>::SharedPtr override_sub;
+	rclcpp::Publisher<mavros_msgs::msg::RCIn>::SharedPtr rc_in_pub;
+	rclcpp::Publisher<mavros_msgs::msg::RCOut>::SharedPtr rc_out_pub;
+	rclcpp::Subscription<mavros_msgs::msg::OverrideRCIn>::SharedPtr override_sub;
 
 	/* -*- rx handlers -*- */
 
@@ -101,7 +101,7 @@ private:
 		rcin_msg->rssi = port.rssi;
 		rcin_msg->channels = raw_rc_in;
 
-		rc_in_pub.publish(rcin_msg);
+		rc_in_pub->publish(*rcin_msg);
 	}
 
 	void handle_rc_channels(const mavlink::mavlink_message_t *msg, mavlink::common::msg::RC_CHANNELS &channels)
@@ -109,7 +109,7 @@ private:
 		constexpr size_t MAX_CHANCNT = 18;
 		lock_guard lock(mutex);
 
-		ROS_INFO_COND_NAMED(!has_rc_channels_msg, "rc", "RC_CHANNELS message detected!");
+		RCUTILS_LOG_INFO_EXPRESSION_NAMED(!has_rc_channels_msg, "rc", "RC_CHANNELS message detected!");
 		has_rc_channels_msg = true;
 
 		if (channels.chancount > MAX_CHANCNT) {
@@ -156,7 +156,7 @@ private:
 		rcin_msg->rssi = channels.rssi;
 		rcin_msg->channels = raw_rc_in;
 
-		rc_in_pub.publish(rcin_msg);
+		rc_in_pub->publish(*rcin_msg);
 	}
 
 	void handle_servo_output_raw(const mavlink::mavlink_message_t *msg, mavlink::common::msg::SERVO_OUTPUT_RAW &port)
@@ -213,7 +213,7 @@ private:
 		rcout_msg->header.stamp = m_uas->synchronise_stamp(time_usec);
 		rcout_msg->channels = raw_rc_out;
 
-		rc_out_pub.publish(rcout_msg);
+		rc_out_pub->publish(*rcout_msg);
 	}
 
 	/* -*- callbacks -*- */
@@ -226,7 +226,7 @@ private:
 		has_rc_channels_msg = false;
 	}
 
-	void override_cb(const mavros_msgs::msg::OverrideRCIn::ConstPtr req)
+	void override_cb(const mavros_msgs::msg::OverrideRCIn::SharedPtr req)
 	{
 		if (!m_uas->is_ardupilotmega() && !m_uas->is_px4())
 			RCUTILS_LOG_WARN_THROTTLE_NAMED(,30, "rc", "RC override not supported by this FCU!");

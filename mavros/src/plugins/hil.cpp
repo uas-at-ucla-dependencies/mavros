@@ -41,19 +41,19 @@ class HilPlugin : public plugin::PluginBase {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-	HilPlugin() : PluginBase(),
-		hil_nh("~hil")
+	HilPlugin() : PluginBase()
 	{ }
 
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		hil_nh = uas_.mavros_node->create_sub_node("hil");
 
-		hil_state_quaternion_sub = hil_nh->create_subscription("state", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
-		hil_gps_sub = hil_nh->create_subscription("gps", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
-		hil_sensor_sub = hil_nh->create_subscription("imu_ned", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
-		hil_flow_sub = hil_nh->create_subscription("optical_flow", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
-		hil_rcin_sub = hil_nh->create_subscription("rc_inputs", 10, std::bind(&HilPlugin, this, std::placeholders::_1));
+		hil_state_quaternion_sub = hil_nh->create_subscription<mavros_msgs::msg::HilStateQuaternion>("state", 10, std::bind(&HilPlugin::state_quat_cb, this, std::placeholders::_1));
+		hil_gps_sub = hil_nh->create_subscription<mavros_msgs::msg::HilGPS>("gps", 10, std::bind(&HilPlugin::gps_cb, this, std::placeholders::_1));
+		hil_sensor_sub = hil_nh->create_subscription<mavros_msgs::msg::HilSensor>("imu_ned", 10, std::bind(&HilPlugin::sensor_cb, this, std::placeholders::_1));
+		hil_flow_sub = hil_nh->create_subscription<mavros_msgs::msg::OpticalFlowRad>("optical_flow", 10, std::bind(&HilPlugin::optical_flow_cb, this, std::placeholders::_1));
+		hil_rcin_sub = hil_nh->create_subscription<mavros_msgs::msg::RCIn>("rc_inputs", 10, std::bind(&HilPlugin::rcin_raw_cb, this, std::placeholders::_1));
 
 		hil_controls_pub = hil_nh->create_publisher<mavros_msgs::msg::HilControls>("controls", 10);
 		hil_actuator_controls_pub = hil_nh->create_publisher<mavros_msgs::msg::HilActuatorControls>("actuator_controls", 10);
@@ -70,14 +70,14 @@ public:
 private:
 	rclcpp::Node::SharedPtr hil_nh;
 
-	rclcpp::Publisher<>::SharedPtr hil_controls_pub;
-	rclcpp::Publisher<>::SharedPtr hil_actuator_controls_pub;
+	rclcpp::Publisher<mavros_msgs::msg::HilControls>::SharedPtr hil_controls_pub;
+	rclcpp::Publisher<mavros_msgs::msg::HilActuatorControls>::SharedPtr hil_actuator_controls_pub;
 
-	rclcpp::Subscription<>::SharedPtr hil_state_quaternion_sub;
-	rclcpp::Subscription<>::SharedPtr hil_gps_sub;
-	rclcpp::Subscription<>::SharedPtr hil_sensor_sub;
-	rclcpp::Subscription<>::SharedPtr hil_flow_sub;
-	rclcpp::Subscription<>::SharedPtr hil_rcin_sub;
+	rclcpp::Subscription<mavros_msgs::msg::HilStateQuaternion>::SharedPtr hil_state_quaternion_sub;
+	rclcpp::Subscription<mavros_msgs::msg::HilGPS>::SharedPtr hil_gps_sub;
+	rclcpp::Subscription<mavros_msgs::msg::HilSensor>::SharedPtr hil_sensor_sub;
+	rclcpp::Subscription<mavros_msgs::msg::OpticalFlowRad>::SharedPtr hil_flow_sub;
+	rclcpp::Subscription<mavros_msgs::msg::RCIn>::SharedPtr hil_rcin_sub;
 
 	Eigen::Quaterniond enu_orientation;
 
@@ -105,7 +105,7 @@ private:
 		hil_controls_msg->nav_mode = hil_controls.nav_mode;
 		// [[[end]]] (checksum: a2c87ee8f36e7a32b08be5e0fe665b5a)
 
-		hil_controls_pub.publish(hil_controls_msg);
+		hil_controls_pub->publish(*hil_controls_msg);
 	}
 
 	void handle_hil_actuator_controls(const mavlink::mavlink_message_t *msg, mavlink::common::msg::HIL_ACTUATOR_CONTROLS &hil_actuator_controls) {
@@ -117,7 +117,7 @@ private:
 		hil_actuator_controls_msg->mode = hil_actuator_controls.mode;
 		hil_actuator_controls_msg->flags = hil_actuator_controls.flags;
 
-		hil_actuator_controls_pub.publish(hil_actuator_controls_msg);
+		hil_actuator_controls_pub->publish(*hil_actuator_controls_msg);
 	}
 
 	/* -*- callbacks / low level send -*- */
@@ -126,10 +126,10 @@ private:
 	 * @brief Send hil_state_quaternion to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_STATE_QUATERNION
 	 */
-	void state_quat_cb(const mavros_msgs::msg::HilStateQuaternion::ConstPtr &req) {
+	void state_quat_cb(const mavros_msgs::msg::HilStateQuaternion::SharedPtr req) {
 		mavlink::common::msg::HIL_STATE_QUATERNION state_quat;
 
-		state_quat.time_usec = req->header.stamp.toNSec() / 1000;
+		state_quat.time_usec = rclcpp::Time(req->header.stamp).nanoseconds() / 1000;
 		auto q = ftf::transform_orientation_baselink_aircraft(
 					ftf::transform_orientation_enu_ned(
 						ftf::to_eigen(req->orientation)));
@@ -178,10 +178,10 @@ private:
 	 * @brief Send hil_gps to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_GPS
 	 */
-	void gps_cb(const mavros_msgs::msg::HilGPS::ConstPtr &req) {
+	void gps_cb(const mavros_msgs::msg::HilGPS::SharedPtr req) {
 		mavlink::common::msg::HIL_GPS gps;
 
-		gps.time_usec = req->header.stamp.toNSec() / 1000;
+		gps.time_usec = rclcpp::Time(req->header.stamp).nanoseconds() / 1000;
 		gps.fix_type = req->fix_type;
 		gps.lat = req->geo.latitude * 1E7;
 		gps.lon = req->geo.longitude * 1E7;
@@ -211,10 +211,10 @@ private:
 	 * @brief Send hil_sensor to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_SENSOR
 	 */
-	void sensor_cb(const mavros_msgs::msg::HilSensor::ConstPtr &req) {
+	void sensor_cb(const mavros_msgs::msg::HilSensor::SharedPtr req) {
 		mavlink::common::msg::HIL_SENSOR sensor;
 
-		sensor.time_usec = req->header.stamp.toNSec() / 1000;
+		sensor.time_usec = rclcpp::Time(req->header.stamp).nanoseconds() / 1000;
 		// WRT world frame
 		auto acc = ftf::transform_frame_baselink_aircraft(
 				ftf::to_eigen(req->acc));
@@ -257,7 +257,7 @@ private:
 	 * @brief Send simulated optical flow to FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_OPTICAL_FLOW
 	 */
-	void optical_flow_cb(const mavros_msgs::msg::OpticalFlowRad::ConstPtr &req) {
+	void optical_flow_cb(const mavros_msgs::msg::OpticalFlowRad::SharedPtr req) {
 		mavlink::common::msg::HIL_OPTICAL_FLOW of;
 
 		auto int_xy = ftf::transform_frame_aircraft_baselink(
@@ -271,7 +271,7 @@ private:
 						req->integrated_ygyro,
 						req->integrated_zgyro));
 
-		of.time_usec = req->header.stamp.toNSec() / 1000;
+		of.time_usec = rclcpp::Time(req->header.stamp).nanoseconds() / 1000;
 		of.sensor_id = INT8_MAX;//while we don't find a better way of handling it
 		of.integration_time_us = req->integration_time_us;
 		// [[[cog:
@@ -300,7 +300,7 @@ private:
 	 * @brief Send simulated received RAW values of the RC channels to the FCU.
 	 * Message specification: @p https://mavlink.io/en/messages/common.html#HIL_RC_INPUTS_RAW
 	 */
-	void rcin_raw_cb(const mavros_msgs::msg::RCIn::ConstPtr &req) {
+	void rcin_raw_cb(const mavros_msgs::msg::RCIn::SharedPtr req) {
 		mavlink::common::msg::HIL_RC_INPUTS_RAW rcin {};
 
 		constexpr size_t MAX_CHANCNT = 12;
@@ -310,7 +310,7 @@ private:
 		std::copy(req->channels.begin(), req->channels.begin() + n, channels.begin());
 		std::fill(channels.begin() + n, channels.end(), UINT16_MAX);
 
-		rcin.time_usec = req->header.stamp.toNSec() / 100000;
+		rcin.time_usec = rclcpp::Time(req->header.stamp).nanoseconds() / 100000;
 		// [[[cog:
 		// for i in range(1,13):
 		//     cog.outl("rcin.chan%d_raw\t= channels[%2d];" % (i, i-1))

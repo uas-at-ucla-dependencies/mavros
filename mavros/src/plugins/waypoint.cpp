@@ -751,8 +751,8 @@ private:
 
 	/* -*- ROS callbacks -*- */
 
-	bool pull_cb(mavros_msgs::msg::WaypointPull::Request &req,
-		mavros_msgs::msg::WaypointPull::Response &res)
+	bool pull_cb(mavros_msgs::msg::WaypointPull::Request::SharedPtr req,
+		mavros_msgs::msg::WaypointPull::Response::SharedPtr res)
 	{
 		unique_lock lock(mutex);
 
@@ -774,8 +774,8 @@ private:
 		return true;
 	}
 
-	bool push_cb(mavros_msgs::msg::WaypointPush::Request &req,
-		mavros_msgs::msg::WaypointPush::Response &res)
+	bool push_cb(mavros_msgs::msg::WaypointPush::Request::SharedPtr req,
+		mavros_msgs::msg::WaypointPush::Response::SharedPtr res)
 	{
 		unique_lock lock(mutex);
 
@@ -850,8 +850,8 @@ private:
 		return true;
 	}
 
-	bool clear_cb(mavros_msgs::msg::WaypointClear::Request &req,
-		mavros_msgs::msg::WaypointClear::Response &res)
+	bool clear_cb(mavros_msgs::msg::WaypointClear::Request::SharedPtr req,
+		mavros_msgs::msg::WaypointClear::Response::SharedPtr res)
 	{
 		unique_lock lock(mutex);
 
@@ -870,8 +870,8 @@ private:
 		return true;
 	}
 
-	bool set_cur_cb(mavros_msgs::msg::WaypointSetCurrent::Request &req,
-		mavros_msgs::msg::WaypointSetCurrent::Response &res)
+	bool set_cur_cb(mavros_msgs::msg::WaypointSetCurrent::Request::SharedPtr req,
+		mavros_msgs::msg::WaypointSetCurrent::Response::SharedPtr res)
 	{
 		unique_lock lock(mutex);
 
