@@ -201,7 +201,7 @@ std::string UAS::str_mode_v10(uint8_t base_mode, uint32_t custom_mode)
 		else if (type == MAV_TYPE::SUBMARINE)
 			return str_mode_cmap(ardusub_cmode_map, custom_mode);
 		else {
-			RCUTILS_LOG_WARN_THROTTLE_NAMED("what the fuck", 30, "uas", "MODE: Unknown APM based FCU! Type: %d", enum_value(type));
+			RCUTILS_LOG_WARN_THROTTLE_NAMED(RCUTILS_STEADY_TIME, 30, "uas", "MODE: Unknown APM based FCU! Type: %d", enum_value(type));
 			return str_custom_mode(custom_mode);
 		}
 	}

@@ -97,17 +97,17 @@ add_library(mavros_plugins
   src/plugins/manual_control.cpp
   src/plugins/param.cpp
   src/plugins/rc_io.cpp
-  src/plugins/safety_area.cpp
-  src/plugins/setpoint_accel.cpp
-  src/plugins/setpoint_attitude.cpp
-  src/plugins/setpoint_position.cpp
-  src/plugins/setpoint_raw.cpp
-  src/plugins/setpoint_velocity.cpp
-  src/plugins/sys_status.cpp
-  src/plugins/sys_time.cpp
-  src/plugins/vfr_hud.cpp
-  src/plugins/waypoint.cpp
-  src/plugins/wind_estimation.cpp
+  # src/plugins/safety_area.cpp
+  # src/plugins/setpoint_accel.cpp
+  # src/plugins/setpoint_attitude.cpp
+  # src/plugins/setpoint_position.cpp
+  # src/plugins/setpoint_raw.cpp
+  # src/plugins/setpoint_velocity.cpp
+  # src/plugins/sys_status.cpp
+  # src/plugins/sys_time.cpp
+  # src/plugins/vfr_hud.cpp
+  # src/plugins/waypoint.cpp
+  # src/plugins/wind_estimation.cpp
 )
 target_link_libraries(mavros_plugins PUBLIC mavros)
 
