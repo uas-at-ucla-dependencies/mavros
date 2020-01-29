@@ -62,7 +62,7 @@ include_directories(
   include
 )
 
-add_library(mavros
+add_library(mavros SHARED
   src/lib/enum_sensor_orientation.cpp
   src/lib/enum_to_string.cpp
   src/lib/ftf_frame_conversions.cpp
@@ -78,11 +78,11 @@ ament_target_dependencies(mavros
   GeographicLib EIGEN3
   mavlink libmavconn mavros_msgs
   rclcpp sensor_msgs diagnostic_updater eigen_conversions angles
-  diagnostic_msgs geographic_msgs pluginlib std_srvs tf2_eigen tf2_ros
+  diagnostic_msgs geographic_msgs nav_msgs pluginlib std_srvs tf2_eigen tf2_ros
 )
 target_link_libraries(mavros atomic)
 
-add_library(mavros_plugins
+add_library(mavros_plugins SHARED
   src/plugins/3dr_radio.cpp
   src/plugins/actuator_control.cpp
   src/plugins/altitude.cpp

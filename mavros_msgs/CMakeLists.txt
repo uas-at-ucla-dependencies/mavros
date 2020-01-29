@@ -61,7 +61,11 @@ set(msg_FILES
   WaypointReached.msg
   WheelOdomStamped.msg
 )
-list(TRANSFORM msg_FILES PREPEND msg/)
+set(_msg_FILES_NEW)
+foreach(_f IN LISTS msg_FILES)
+  list(APPEND _msg_FILES_NEW msg/${_f})
+endforeach()
+set(msg_FILES ${_msg_FILES_NEW})
 
 set(srv_FILES
   CommandBool.srv
@@ -100,7 +104,11 @@ set(srv_FILES
   WaypointPush.srv
   WaypointSetCurrent.srv
 )
-list(TRANSFORM srv_FILES PREPEND srv/)
+set(_srv_FILES_NEW)
+foreach(_f IN LISTS srv_FILES)
+  list(APPEND _srv_FILES_NEW "srv/${_f}")
+endforeach()
+set(srv_FILES ${_srv_FILES_NEW})
 
 # add_action_files(
 #   DIRECTORY action

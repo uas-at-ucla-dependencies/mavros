@@ -1,4 +1,4 @@
-<library path="lib/libmavros_plugins">
+<library path="mavros_plugins">
 	<!--<class name="dummy" type="mavros::std_plugins::DummyPlugin" base_class_type="mavros::plugin::PluginBase">
 		<description>Dummy test plugin.</description>
 	</class>-->

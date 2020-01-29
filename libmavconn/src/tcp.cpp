@@ -120,8 +120,12 @@ void MAVConnTCPClient::client_connected(size_t server_channel)
 			server_channel, conn_id, to_string_ss(server_ep).c_str());
 
 	// start recv
+#if BOOST_ASIO_VERSION >= 101200
 	boost::asio::post(socket.get_executor(),
 		std::bind(&MAVConnTCPClient::do_recv, shared_from_this()));
+#else
+	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_recv, shared_from_this()));
+#endif
 }
 
 MAVConnTCPClient::~MAVConnTCPClient()
@@ -167,8 +171,12 @@ void MAVConnTCPClient::send_bytes(const uint8_t *bytes, size_t length)
 
 		tx_q.emplace_back(bytes, length);
 	}
+#if BOOST_ASIO_VERSION >= 101200
 	boost::asio::post(socket.get_executor(),
 		std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+#else
+	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+#endif
 }
 
 void MAVConnTCPClient::send_message(const mavlink_message_t *message)
@@ -190,8 +198,12 @@ void MAVConnTCPClient::send_message(const mavlink_message_t *message)
 
 		tx_q.emplace_back(message);
 	}
+#if BOOST_ASIO_VERSION >= 101200
 	boost::asio::post(socket.get_executor(),
 		std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+#else
+	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+#endif
 }
 
 void MAVConnTCPClient::send_message(const mavlink::Message &message, const uint8_t source_compid)
@@ -211,8 +223,12 @@ void MAVConnTCPClient::send_message(const mavlink::Message &message, const uint8
 
 		tx_q.emplace_back(message, get_status_p(), sys_id, source_compid);
 	}
+#if BOOST_ASIO_VERSION >= 101200
 	boost::asio::post(socket.get_executor(),
 		std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+#else
+	socket.get_io_service().post(std::bind(&MAVConnTCPClient::do_send, shared_from_this(), true));
+#endif
 }
 
 void MAVConnTCPClient::do_recv()
