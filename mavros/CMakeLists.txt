@@ -106,7 +106,7 @@ add_library(mavros_plugins
   # src/plugins/sys_status.cpp
   # src/plugins/sys_time.cpp
   # src/plugins/vfr_hud.cpp
-  # src/plugins/waypoint.cpp
+  src/plugins/waypoint.cpp
   # src/plugins/wind_estimation.cpp
 )
 target_link_libraries(mavros_plugins PUBLIC mavros)
