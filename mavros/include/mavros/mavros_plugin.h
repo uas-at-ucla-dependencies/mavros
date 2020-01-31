@@ -23,6 +23,7 @@
 #include <diagnostic_updater/diagnostic_updater.hpp>
 #include <mavconn/interface.h>
 #include <mavros/mavros_uas.h>
+#include <rclcpp/node.hpp>
 
 namespace mavros {
 namespace plugin {
@@ -66,6 +67,10 @@ public:
 	 * @brief Return vector of MAVLink message subscriptions (handlers)
 	 */
 	virtual Subscriptions get_subscriptions() = 0;
+
+	virtual rclcpp::Node::SharedPtr get_ros_node() {
+		return nullptr;
+	}
 
 protected:
 	/**

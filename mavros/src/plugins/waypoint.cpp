@@ -150,21 +150,23 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		wp_nh = uas_.mavros_node->create_sub_node("mission");
+		wp_nh = std::make_shared<rclcpp::Node>("mission", "mavros");
 
 		wp_state = WP::IDLE;
 
-		wp_nh->get_parameter_or("pull_after_gcs", do_pull_after_gcs, true);
+		wp_nh->get_parameter_or("~/pull_after_gcs", do_pull_after_gcs, true);
 
-		wp_list_pub = wp_nh->create_publisher<mavros_msgs::msg::WaypointList>("waypoints", 2);
-		wp_reached_pub = wp_nh->create_publisher<mavros_msgs::msg::WaypointReached>("reached", 10);
-		pull_srv = wp_nh->create_service<mavros_msgs::srv::WaypointPull>("pull", 
+		wp_list_pub = wp_nh->create_publisher<mavros_msgs::msg::WaypointList>("~/waypoints", 
+			rclcpp::QoS(2).reliable().transient_local());
+		wp_reached_pub = wp_nh->create_publisher<mavros_msgs::msg::WaypointReached>("~/reached", 
+			rclcpp::QoS(10).reliable().transient_local());
+		pull_srv = wp_nh->create_service<mavros_msgs::srv::WaypointPull>("~/pull", 
 			std::bind(&WaypointPlugin::pull_cb, this, std::placeholders::_1, std::placeholders::_2));
-		push_srv = wp_nh->create_service<mavros_msgs::srv::WaypointPush>("push", 
+		push_srv = wp_nh->create_service<mavros_msgs::srv::WaypointPush>("~/push", 
 			std::bind(&WaypointPlugin::push_cb, this, std::placeholders::_1, std::placeholders::_2));
-		clear_srv = wp_nh->create_service<mavros_msgs::srv::WaypointClear>("clear", 
+		clear_srv = wp_nh->create_service<mavros_msgs::srv::WaypointClear>("~/clear", 
 			std::bind(&WaypointPlugin::clear_cb, this, std::placeholders::_1, std::placeholders::_2));
-		set_cur_srv = wp_nh->create_service<mavros_msgs::srv::WaypointSetCurrent>("set_current", 
+		set_cur_srv = wp_nh->create_service<mavros_msgs::srv::WaypointSetCurrent>("~/set_current", 
 			std::bind(&WaypointPlugin::set_cur_cb, this, std::placeholders::_1, std::placeholders::_2));
 
 		wp_timer = wp_nh->create_wall_timer(WP_TIMEOUT_MS, 
@@ -185,6 +187,10 @@ public:
 			       make_handler(&WaypointPlugin::handle_mission_item_reached),
 			       make_handler(&WaypointPlugin::handle_mission_ack),
 		};
+	}
+
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return wp_nh;
 	}
 
 private:
@@ -891,6 +897,13 @@ private:
 		return true;
 	}
 };
+
+constexpr std::chrono::milliseconds WaypointPlugin::BOOTUP_TIME_MS;
+constexpr std::chrono::milliseconds WaypointPlugin::LIST_TIMEOUT_MS;
+constexpr std::chrono::milliseconds WaypointPlugin::WP_TIMEOUT_MS;
+constexpr std::chrono::milliseconds WaypointPlugin::RESCHEDULE_MS;
+constexpr int WaypointPlugin::RETRIES_COUNT;
+
 }	// namespace std_plugins
 }	// namespace mavros
 

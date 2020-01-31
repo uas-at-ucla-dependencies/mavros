@@ -69,7 +69,7 @@ MavRos::MavRos(const rclcpp::NodeOptions& node_options) :
 	// Now we use FCU URL as a hardware Id
 	UAS_DIAG(&mav_uas).setHardwareID(fcu_url);
 
-	RCLCPP_INFO(logger, "FCU URL: %s", fcu_url.c_str());
+	RCLCPP_INFO_STREAM(logger, "FCU URL: " << fcu_url);
 	try {
 		fcu_link = MAVConnInterface::open_url(fcu_url, system_id, component_id);
 		// may be overridden by URL
@@ -100,7 +100,7 @@ MavRos::MavRos(const rclcpp::NodeOptions& node_options) :
 	}
 
 	if (gcs_url != "") {
-		RCLCPP_INFO(logger, "GCS URL: %s", gcs_url.c_str());
+		RCLCPP_INFO_STREAM(logger, "GCS URL: " << gcs_url);
 		try {
 			gcs_link = MAVConnInterface::open_url(gcs_url, system_id, component_id);
 
@@ -194,6 +194,12 @@ void MavRos::spin()
 	}
 	rclcpp::executors::MultiThreadedExecutor executor;
 	executor.add_node(shared_from_this());
+	for (auto& loaded_plugin : loaded_plugins) {
+		auto node = loaded_plugin->get_ros_node();
+		if (node) {
+			executor.add_node(node);
+		}
+	}
 
 	executor.spin();
 
