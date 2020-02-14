@@ -18,7 +18,6 @@
 #include <mavros/utils.h>
 #include <mavros/mavros_plugin.h>
 #include <mavros/setpoint_mixin.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <geometry_msgs/msg/vector3_stamped.hpp>
 
@@ -94,7 +93,7 @@ private:
 	void accel_cb(const geometry_msgs::msg::Vector3Stamped::SharedPtr req) {
 		Eigen::Vector3d accel_enu;
 
-		tf::vectorMsgToEigen(req->vector, accel_enu);
+		tf2::convert(req->vector, accel_enu);
 		send_setpoint_acceleration(req->header.stamp, accel_enu);
 	}
 };

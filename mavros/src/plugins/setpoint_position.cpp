@@ -16,7 +16,6 @@
 
 #include <mavros/mavros_plugin.h>
 #include <mavros/setpoint_mixin.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 
@@ -198,7 +197,7 @@ private:
 					| uint16_t(POSITION_TARGET_TYPEMASK::AZ_IGNORE);
 
 		Eigen::Quaterniond attitude;
-		tf::quaternionMsgToEigen(req->pose.orientation, attitude);
+		tf2::convert(req->pose.orientation, attitude);
 		Eigen::Quaterniond q = ftf::transform_orientation_enu_ned(
 						ftf::transform_orientation_baselink_aircraft(attitude));
 
@@ -250,7 +249,7 @@ private:
 		Eigen::Affine3d sp;	// holds position setpoint
 		Eigen::Quaterniond q;	// holds desired yaw
 
-		tf::quaternionMsgToEigen(req->pose.orientation, q);
+		tf2::convert(req->pose.orientation, q);
 
 		// set position setpoint
 		sp.translation() = current_local_pos + enu_offset;

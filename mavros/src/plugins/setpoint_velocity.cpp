@@ -17,7 +17,6 @@
 
 #include <mavros/mavros_plugin.h>
 #include <mavros/setpoint_mixin.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
@@ -116,7 +115,7 @@ private:
 	void vel_cb(const geometry_msgs::msg::TwistStamped::SharedPtr req) {
 		Eigen::Vector3d vel_enu;
 
-		tf::vectorMsgToEigen(req->twist.linear, vel_enu);
+		tf2::convert(req->twist.linear, vel_enu);
 		send_setpoint_velocity(req->header.stamp, vel_enu,
 					req->twist.angular.z);
 	}
@@ -124,7 +123,7 @@ private:
 	void vel_unstamped_cb(const geometry_msgs::msg::Twist::SharedPtr req) {
 		Eigen::Vector3d vel_enu;
 
-		tf::vectorMsgToEigen(req->linear, vel_enu);
+		tf2::convert(req->linear, vel_enu);
 		send_setpoint_velocity(rclcpp::Time::now(), vel_enu,
 					req->angular.z);
 	}

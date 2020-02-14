@@ -17,7 +17,6 @@
 
 #include <mavros/mavros_plugin.h>
 #include <mavros/setpoint_mixin.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -209,7 +208,7 @@ private:
 
 	void attitude_twist_cb(const geometry_msgs::msg::TwistStamped::SharedPtr req, const mavros_msgs::msg::Thrust::SharedPtr thrust_msg) {
 		Eigen::Vector3d ang_vel;
-		tf::vectorMsgToEigen(req->twist.angular, ang_vel);
+		tf2::convert(req->twist.angular, ang_vel);
 
 		if (is_normalized(thrust_msg->thrust))
 			send_attitude_ang_velocity(req->header.stamp, ang_vel, thrust_msg->thrust);

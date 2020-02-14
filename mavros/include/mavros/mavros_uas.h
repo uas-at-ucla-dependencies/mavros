@@ -20,7 +20,6 @@
 #include <array>
 #include <mutex>
 #include <atomic>
-#include <eigen_conversions/eigen_msg.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>

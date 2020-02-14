@@ -17,7 +17,6 @@
 #include <mavros/mavros_plugin.h>
 
 #include <angles/angles.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
@@ -86,7 +85,7 @@ private:
 		auto twist_cov = std::make_shared<geometry_msgs::msg::TwistWithCovarianceStamped>();
 		twist_cov->header.stamp = m_uas->synchronise_stamp(wind.time_usec);
 
-		tf::vectorEigenToMsg(ftf::transform_frame_ned_enu(Eigen::Vector3d(wind.wind_x, wind.wind_y, wind.wind_z)),
+		tf2::convert(ftf::transform_frame_ned_enu(Eigen::Vector3d(wind.wind_x, wind.wind_y, wind.wind_z)),
 					twist_cov->twist.twist.linear);
 
 		// fill available covariance elements

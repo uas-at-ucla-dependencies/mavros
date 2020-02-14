@@ -16,7 +16,7 @@
 
 #include <cmath>
 #include <mavros/mavros_plugin.h>
-#include <eigen_conversions/eigen_msg.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/magnetic_field.hpp>
@@ -172,16 +172,16 @@ private:
 		imu_ned_msg->header = m_uas->synchronized_header("aircraft", time_boot_ms);
 
 		// Convert from Eigen::Quaternond to geometry_msgs::msg::Quaternion
-		tf::quaternionEigenToMsg(orientation_enu, imu_enu_msg->orientation);
-		tf::quaternionEigenToMsg(orientation_ned, imu_ned_msg->orientation);
+		tf2::convert(orientation_enu, imu_enu_msg->orientation);
+		tf2::convert(orientation_ned, imu_ned_msg->orientation);
 
 		// Convert from Eigen::Vector3d to geometry_msgs::msg::Vector3
-		tf::vectorEigenToMsg(gyro_flu, imu_enu_msg->angular_velocity);
-		tf::vectorEigenToMsg(gyro_frd, imu_ned_msg->angular_velocity);
+		tf2::toMsg(gyro_flu, imu_enu_msg->angular_velocity);
+		tf2::toMsg(gyro_frd, imu_ned_msg->angular_velocity);
 
 		// Eigen::Vector3d from HIGHRES_IMU or RAW_IMU, to geometry_msgs::msg::Vector3
-		tf::vectorEigenToMsg(linear_accel_vec_flu, imu_enu_msg->linear_acceleration);
-		tf::vectorEigenToMsg(linear_accel_vec_frd, imu_ned_msg->linear_acceleration);
+		tf2::toMsg(linear_accel_vec_flu, imu_enu_msg->linear_acceleration);
+		tf2::toMsg(linear_accel_vec_frd, imu_ned_msg->linear_acceleration);
 
 		// Pass ENU msg covariances
 		imu_enu_msg->orientation_covariance = orientation_cov;
@@ -236,8 +236,8 @@ private:
 		// Fill message header
 		imu_msg->header = header;
 
-		tf::vectorEigenToMsg(gyro_flu, imu_msg->angular_velocity);
-		tf::vectorEigenToMsg(accel_flu, imu_msg->linear_acceleration);
+		tf2::toMsg(gyro_flu, imu_msg->angular_velocity);
+		tf2::toMsg(accel_flu, imu_msg->linear_acceleration);
 
 		// Save readings
 		linear_accel_vec_flu = accel_flu;
@@ -264,7 +264,7 @@ private:
 		// Fill message header
 		magn_msg->header = header;
 
-		tf::vectorEigenToMsg(mag_field, magn_msg->magnetic_field);
+		tf2::toMsg(mag_field, magn_msg->magnetic_field);
 		magn_msg->magnetic_field_covariance = magnetic_cov;
 
 		// Publish message [ENU frame]

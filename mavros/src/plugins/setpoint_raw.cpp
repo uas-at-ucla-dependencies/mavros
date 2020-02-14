@@ -16,7 +16,6 @@
 
 #include <mavros/mavros_plugin.h>
 #include <mavros/setpoint_mixin.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <mavros_msgs/msg/attitude_target.hpp>
 #include <mavros_msgs/msg/position_target.hpp>
@@ -91,9 +90,9 @@ private:
 		target->header.stamp = m_uas->synchronise_stamp(tgt.time_boot_ms);
 		target->coordinate_frame = tgt.coordinate_frame;
 		target->type_mask = tgt.type_mask;
-		tf::pointEigenToMsg(position, target->position);
-		tf::vectorEigenToMsg(velocity, target->velocity);
-		tf::vectorEigenToMsg(af, target->acceleration_or_force);
+		tf2::convert(position, target->position);
+		tf2::convert(velocity, target->velocity);
+		tf2::convert(af, target->acceleration_or_force);
 		target->yaw = yaw;
 		target->yaw_rate = yaw_rate;
 
@@ -121,8 +120,8 @@ private:
 		target->latitude = tgt.lat_int / 1e7;
 		target->longitude = tgt.lon_int / 1e7;
 		target->altitude = tgt.alt;
-		tf::vectorEigenToMsg(velocity, target->velocity);
-		tf::vectorEigenToMsg(af, target->acceleration_or_force);
+		tf2::convert(velocity, target->velocity);
+		tf2::convert(af, target->acceleration_or_force);
 		target->yaw = yaw;
 		target->yaw_rate = yaw_rate;
 
@@ -143,8 +142,8 @@ private:
 
 		target->header.stamp = m_uas->synchronise_stamp(tgt.time_boot_ms);
 		target->type_mask = tgt.type_mask;
-		tf::quaternionEigenToMsg(orientation, target->orientation);
-		tf::vectorEigenToMsg(body_rate, target->body_rate);
+		tf2::convert(orientation, target->orientation);
+		tf2::convert(body_rate, target->body_rate);
 		target->thrust = tgt.thrust;
 
 		target_attitude_pub.publish(target);
@@ -157,9 +156,9 @@ private:
 		Eigen::Vector3d position, velocity, af;
 		float yaw, yaw_rate;
 
-		tf::pointMsgToEigen(req->position, position);
-		tf::vectorMsgToEigen(req->velocity, velocity);
-		tf::vectorMsgToEigen(req->acceleration_or_force, af);
+		tf2::convert(req->position, position);
+		tf2::convert(req->velocity, velocity);
+		tf2::convert(req->acceleration_or_force, af);
 
 		// Transform frame ENU->NED
 		position = ftf::transform_frame_enu_ned(position);
@@ -188,8 +187,8 @@ private:
 		Eigen::Vector3d velocity, af;
 		float yaw, yaw_rate;
 
-		tf::vectorMsgToEigen(req->velocity, velocity);
-		tf::vectorMsgToEigen(req->acceleration_or_force, af);
+		tf2::convert(req->velocity, velocity);
+		tf2::convert(req->acceleration_or_force, af);
 
 		// Transform frame ENU->NED
 		velocity = ftf::transform_frame_enu_ned(velocity);

@@ -17,7 +17,6 @@
  * https://github.com/mavlink/mavros/tree/master/LICENSE.md
  */
 #include <mavros/mavros_plugin.h>
-#include <eigen_conversions/eigen_msg.h>
 
 #include <mavros_msgs/msg/hil_controls.hpp>
 #include <mavros_msgs/msg/hil_actuator_controls.hpp>

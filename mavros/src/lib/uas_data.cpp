@@ -17,6 +17,8 @@
 #include <mavros/mavros_uas.h>
 #include <mavros/utils.h>
 #include <mavros/px4_custom_mode.h>
+#include <tf2/convert.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 using namespace mavros;
 using utils::enum_value;
@@ -231,12 +233,10 @@ sensor_msgs::msg::NavSatFix::SharedPtr UAS::get_gps_fix()
 //! Publishes static transform
 void UAS::publish_static_transform(const std::string &frame_id, const std::string &child_id, const Eigen::Affine3d &tr)
 {
-	geometry_msgs::msg::TransformStamped static_transformStamped;
-
+	geometry_msgs::msg::TransformStamped static_transformStamped = tf2::eigenToTransform(tr);
 	static_transformStamped.header.stamp = clock->now();
 	static_transformStamped.header.frame_id = frame_id;
 	static_transformStamped.child_frame_id = child_id;
-	tf::transformEigenToMsg(tr, static_transformStamped.transform);
 
 	tf2_static_broadcaster.sendTransform(static_transformStamped);
 }

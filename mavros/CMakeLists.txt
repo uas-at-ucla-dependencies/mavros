@@ -15,7 +15,6 @@ find_package(tf2_eigen REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(angles REQUIRED)
 find_package(diagnostic_updater REQUIRED)
-find_package(eigen_conversions REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(libmavconn REQUIRED)
 find_package(mavros_msgs REQUIRED)
@@ -77,7 +76,7 @@ add_library(mavros SHARED
 ament_target_dependencies(mavros
   GeographicLib EIGEN3
   mavlink libmavconn mavros_msgs
-  rclcpp sensor_msgs diagnostic_updater eigen_conversions angles
+  rclcpp sensor_msgs diagnostic_updater angles
   diagnostic_msgs geographic_msgs nav_msgs pluginlib std_srvs tf2_eigen tf2_ros
 )
 target_link_libraries(mavros atomic)
@@ -166,7 +165,7 @@ install(DIRECTORY launch/
 ## Testing ##
 #############
 
-if(CATKIN_ENABLE_TESTING)
+if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(libmavros-frame-conversions-test test/test_frame_conversions.cpp)
   target_link_libraries(libmavros-frame-conversions-test mavros)
@@ -187,7 +186,7 @@ endif()
 # ament_export_interfaces(mavros_plugins gcs_bridge mavros_node)
 ament_export_include_directories(include)
 ament_export_libraries(mavros)
-ament_export_dependencies(diagnostic_msgs diagnostic_updater eigen_conversions geographic_msgs geometry_msgs libmavconn
+ament_export_dependencies(diagnostic_msgs diagnostic_updater geographic_msgs geometry_msgs libmavconn
   mavros_msgs rosidl_default_runtime nav_msgs pluginlib rclcpp sensor_msgs std_msgs tf2_ros
   Eigen3 GeographicLib)
 ament_package()

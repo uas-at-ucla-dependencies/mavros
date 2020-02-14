@@ -15,7 +15,7 @@
  * https://github.com/mavlink/mavros/tree/master/LICENSE.md
  */
 #include <mavros/mavros_plugin.h>
-#include <eigen_conversions/eigen_msg.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 #include <std_srvs/srv/trigger.hpp>
 #include <mavros_msgs/srv/command_long.hpp>
@@ -106,9 +106,9 @@ private:
 		hp->geo.latitude = home_position.latitude / 1E7;		// deg
 		hp->geo.longitude = home_position.longitude / 1E7;		// deg
 		hp->geo.altitude = home_position.altitude / 1E3 + m_uas->geoid_to_ellipsoid_height(&hp->geo);	// in meters
-		tf::quaternionEigenToMsg(q, hp->orientation);
-		tf::pointEigenToMsg(pos, hp->position);
-		tf::vectorEigenToMsg(hp_approach_enu, hp->approach);
+		tf2::convert(q, hp->orientation);
+		tf2::convert(pos, hp->position);
+		tf2::toMsg(hp_approach_enu, hp->approach);
 
 		RCUTILS_LOG_DEBUG_NAMED("home_position", "HP: Home lat %f, long %f, alt %f", hp->geo.latitude, hp->geo.longitude, hp->geo.altitude);
 		hp_pub->publish(*hp);
@@ -121,13 +121,13 @@ private:
 		Eigen::Vector3d pos, approach;
 		Eigen::Quaterniond q;
 
-		tf::pointMsgToEigen(req->position, pos);
+		tf2::convert(req->position, pos);
 		pos = ftf::transform_frame_enu_ned(pos);
 
-		tf::quaternionMsgToEigen(req->orientation, q);
+		tf2::fromMsg(req->orientation, q);
 		q = ftf::transform_orientation_enu_ned(q);
 
-		tf::vectorMsgToEigen(req->approach, approach);
+		tf2::fromMsg(req->approach, approach);
 		approach = ftf::transform_frame_enu_ned(approach);
 
 		hp.target_system = m_uas->get_tgt_system();

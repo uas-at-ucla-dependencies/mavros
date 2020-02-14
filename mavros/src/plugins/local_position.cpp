@@ -17,7 +17,7 @@
  */
 
 #include <mavros/mavros_plugin.h>
-#include <eigen_conversions/eigen_msg.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 #include <geometry_msgs/msg/accel_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -119,16 +119,16 @@ private:
 		auto enu_orientation_msg = m_uas->get_attitude_orientation_enu();
 		auto baselink_angular_msg = m_uas->get_attitude_angular_velocity_enu();
 		Eigen::Quaterniond enu_orientation;
-		tf::quaternionMsgToEigen(enu_orientation_msg, enu_orientation);
+		tf2::fromMsg(enu_orientation_msg, enu_orientation);
 		auto baselink_linear = ftf::transform_frame_enu_baselink(enu_velocity, enu_orientation.inverse());
 
 		auto odom = std::make_shared<nav_msgs::msg::Odometry>();
 		odom->header = m_uas->synchronized_header(frame_id, pos_ned.time_boot_ms);
 		odom->child_frame_id = tf_child_frame_id;
 
-		tf::pointEigenToMsg(enu_position, odom->pose.pose.position);
+		tf2::convert(enu_position, odom->pose.pose.position);
 		odom->pose.pose.orientation = enu_orientation_msg;
-		tf::vectorEigenToMsg(baselink_linear, odom->twist.twist.linear);
+		tf2::toMsg(baselink_linear, odom->twist.twist.linear);
 		odom->twist.twist.angular = baselink_angular_msg;
 
 		// publish odom if we don't have LOCAL_POSITION_NED_COV
@@ -155,8 +155,8 @@ private:
 		auto twist_local = std::make_shared<geometry_msgs::msg::TwistStamped>();
 		twist_local->header.stamp = twist_body->header.stamp;
 		twist_local->header.frame_id = tf_child_frame_id;
-		tf::vectorEigenToMsg(enu_velocity, twist_local->twist.linear);
-		tf::vectorEigenToMsg(ftf::transform_frame_baselink_enu(ftf::to_eigen(baselink_angular_msg), enu_orientation),
+		tf2::toMsg(enu_velocity, twist_local->twist.linear);
+		tf2::toMsg(ftf::transform_frame_baselink_enu(ftf::to_eigen(baselink_angular_msg), enu_orientation),
 						twist_body->twist.angular);
 		local_velocity_local->publish(*twist_local);
 
@@ -174,16 +174,16 @@ private:
 		auto enu_orientation_msg = m_uas->get_attitude_orientation_enu();
 		auto baselink_angular_msg = m_uas->get_attitude_angular_velocity_enu();
 		Eigen::Quaterniond enu_orientation;
-		tf::quaternionMsgToEigen(enu_orientation_msg, enu_orientation);
+		tf2::fromMsg(enu_orientation_msg, enu_orientation);
 		auto baselink_linear = ftf::transform_frame_enu_baselink(enu_velocity, enu_orientation.inverse());
 
 		auto odom = std::make_shared<nav_msgs::msg::Odometry>();
 		odom->header = m_uas->synchronized_header(frame_id, pos_ned.time_usec);
 		odom->child_frame_id = tf_child_frame_id;
 
-		tf::pointEigenToMsg(enu_position, odom->pose.pose.position);
+		tf2::convert(enu_position, odom->pose.pose.position);
 		odom->pose.pose.orientation = enu_orientation_msg;
-		tf::vectorEigenToMsg(baselink_linear, odom->twist.twist.linear);
+		tf2::toMsg(baselink_linear, odom->twist.twist.linear);
 		odom->twist.twist.angular = baselink_angular_msg;
 
 		odom->pose.covariance[0] = pos_ned.covariance[0];	// x
@@ -233,7 +233,7 @@ private:
 		accel->header = odom->header;
 
 		auto enu_accel = ftf::transform_frame_ned_enu(Eigen::Vector3d(pos_ned.ax, pos_ned.ay, pos_ned.az));
-		tf::vectorEigenToMsg(enu_accel, accel->accel.accel.linear);
+		tf2::toMsg(enu_accel, accel->accel.accel.linear);
 
 		accel->accel.covariance[0] = pos_ned.covariance[39];	// ax
 		accel->accel.covariance[7] = pos_ned.covariance[42];	// ay

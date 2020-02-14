@@ -18,8 +18,8 @@
 
 #include <angles/angles.h>
 #include <mavros/mavros_plugin.h>
-#include <eigen_conversions/eigen_msg.h>
 #include <GeographicLib/Geocentric.hpp>
+#include <tf2_eigen/tf2_eigen.h>
 
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/u_int32.hpp>
@@ -144,14 +144,14 @@ private:
 	Eigen::Vector3d local_ecef {};	//!< local ECEF coordinates on map frame [m]
 
 	template<typename MsgT>
-	inline void fill_lla(MsgT &msg, sensor_msgs::msg::NavSatFix::Ptr fix)
+	inline void fill_lla(MsgT &msg, sensor_msgs::msg::NavSatFix::SharedPtr fix)
 	{
 		fix->latitude = msg.lat / 1E7;		// deg
 		fix->longitude = msg.lon / 1E7;		// deg
 		fix->altitude = msg.alt / 1E3 + m_uas->geoid_to_ellipsoid_height(fix);	// in meters
 	}
 
-	inline void fill_unknown_cov(sensor_msgs::msg::NavSatFix::Ptr fix)
+	inline void fill_unknown_cov(sensor_msgs::msg::NavSatFix::SharedPtr fix)
 	{
 		fix->position_covariance.fill(0.0);
 		fix->position_covariance[0] = -1.0;
@@ -307,8 +307,8 @@ private:
 		odom->child_frame_id = child_frame_id;
 
 		// Linear velocity
-		tf::vectorEigenToMsg(Eigen::Vector3d(gpos.vy, gpos.vx, gpos.vz) / 1E2,
-					odom->twist.twist.linear);
+		Eigen::Vector3d linvel = Eigen::Vector3d(gpos.vy, gpos.vx, gpos.vz) / 1E2;
+		tf2::toMsg(linvel, odom->twist.twist.linear);
 
 		// Velocity covariance unknown
 		ftf::EigenMapCovariance6d vel_cov_out(odom->twist.covariance.data());
@@ -357,7 +357,7 @@ private:
 		// Compute the local coordinates in ECEF
 		local_ecef = map_point - ecef_origin;
 		// Compute the local coordinates in ENU
-		tf::pointEigenToMsg(ftf::transform_frame_ecef_enu(local_ecef, map_origin), odom->pose.pose.position);
+		tf2::convert(ftf::transform_frame_ecef_enu(local_ecef, map_origin), odom->pose.pose.position);
 
 		/**
 		 * @brief By default, we are using the relative altitude instead of the geocentric
@@ -414,8 +414,8 @@ private:
 					ftf::transform_orientation_ned_enu(
 						ftf::quaternion_from_rpy(offset.roll, offset.pitch, offset.yaw)));
 
-		tf::pointEigenToMsg(enu_position, global_offset->pose.position);
-		tf::quaternionEigenToMsg(enu_baselink_orientation, global_offset->pose.orientation);
+		tf2::convert(enu_position, global_offset->pose.position);
+		tf2::convert(enu_baselink_orientation, global_offset->pose.orientation);
 
 		gp_global_offset_pub->publish(*global_offset);
 
