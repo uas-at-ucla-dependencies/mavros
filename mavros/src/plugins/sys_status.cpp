@@ -52,6 +52,7 @@ class HeartbeatStatus : public diagnostic_updater::DiagnosticTask
 public:
 	HeartbeatStatus(const std::string &name, size_t win_size) :
 		diagnostic_updater::DiagnosticTask(name),
+		clock_(),
 		times_(win_size),
 		seq_nums_(win_size),
 		window_size_(win_size),
@@ -68,7 +69,7 @@ public:
 	void clear()
 	{
 		std::lock_guard<std::mutex> lock(mutex);
-		rclcpp::Time curtime = rclcpp::Time::now();
+		rclcpp::Time curtime = clock_.now();
 		count_ = 0;
 
 		for (size_t i = 0; i < window_size_; i++) {
@@ -95,10 +96,10 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mutex);
 
-		rclcpp::Time curtime = rclcpp::Time::now();
+		rclcpp::Time curtime = clock_.now();
 		int curseq = count_;
 		int events = curseq - seq_nums_[hist_indx_];
-		double window = (curtime - times_[hist_indx_]).toSec();
+		double window = (curtime - times_[hist_indx_]).seconds();
 		double freq = events / window;
 		seq_nums_[hist_indx_] = curseq;
 		times_[hist_indx_] = curtime;
@@ -126,6 +127,7 @@ public:
 	}
 
 private:
+	rclcpp::Clock clock_;
 	int count_;
 	std::vector<rclcpp::Time> times_;
 	std::vector<int> seq_nums_;
@@ -416,7 +418,8 @@ class SystemStatusPlugin : public plugin::PluginBase
 {
 public:
 	SystemStatusPlugin() : PluginBase(),
-		nh("~"),
+		nh(rclcpp::Node::make_shared("sys", "mavros")),
+		clock(nh->get_clock()),
 		hb_diag("Heartbeat", 10),
 		mem_diag("APM Memory"),
 		hwst_diag("APM Hardware"),
@@ -433,24 +436,24 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		ros::Duration conn_heartbeat;
+		std::chrono::duration<double> conn_heartbeat_period;
 
 		double conn_timeout_d;
 		double conn_heartbeat_d;
 		double min_voltage;
 		std::string conn_heartbeat_mav_type_str;
 
-		nh.param("conn/timeout", conn_timeout_d, 10.0);
-		nh.param("sys/min_voltage", min_voltage, 10.0);
-		nh.param("sys/disable_diag", disable_diag, false);
+		nh->get_parameter_or("conn/timeout", conn_timeout_d, 10.0);
+		nh->get_parameter_or("sys/min_voltage", min_voltage, 10.0);
+		nh->get_parameter_or("sys/disable_diag", disable_diag, false);
 
 		// heartbeat rate parameter
-		if (nh.getParam("conn/heartbeat_rate", conn_heartbeat_d) && conn_heartbeat_d != 0.0) {
-			conn_heartbeat = ros::Duration(ros::Rate(conn_heartbeat_d));
+		if (nh->get_parameter("conn/heartbeat_rate", conn_heartbeat_d) && conn_heartbeat_d != 0.0) {
+			conn_heartbeat_period = std::chrono::duration<double>(1.0 / conn_heartbeat_d);
 		}
 
 		// heartbeat mav type parameter
-		if (nh.getParam("conn/heartbeat_mav_type", conn_heartbeat_mav_type_str)) {
+		if (nh->get_parameter("conn/heartbeat_mav_type", conn_heartbeat_mav_type_str)) {
 			conn_heartbeat_mav_type = utils::mav_type_from_str(conn_heartbeat_mav_type_str);
 		}
 
@@ -465,30 +468,37 @@ public:
 
 
 		// one-shot timeout timer
-		timeout_timer = nh.createTimer(ros::Duration(conn_timeout_d),
-				std::bind(&SystemStatusPlugin, this, std::placeholders::_1), true);
+		timeout_timer = nh->create_wall_timer(std::chrono::duration<double>(conn_timeout_d),
+				std::bind(&SystemStatusPlugin::timeout_cb, this));
+		timeout_timer->cancel();
 		//timeout_timer.start();
 
-		if (!conn_heartbeat.isZero()) {
-			heartbeat_timer = nh.createTimer(conn_heartbeat,
-					std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
+		if (conn_heartbeat_period != std::chrono::duration<double>()) {
+			heartbeat_timer = nh->create_wall_timer(conn_heartbeat_period,
+					std::bind(&SystemStatusPlugin::heartbeat_cb, this));
 			//heartbeat_timer.start();
 		}
 
-		// version request timer
-		autopilot_version_timer = nh.createTimer(ros::Duration(1.0),
-				std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
-		autopilot_version_timer.stop();
+		// start version request timer
+		autopilot_version_timer = nh->create_wall_timer(std::chrono::seconds(1),
+				std::bind(&SystemStatusPlugin::autopilot_version_cb, this));
+		autopilot_version_timer->cancel();
 
-		state_pub = nh->create_publisher<mavros_msgs::msg::State>("state", 10, true);
+		state_pub = nh->create_publisher<mavros_msgs::msg::State>("state", 
+			rclcpp::QoS(10).transient_local().reliable());
 		extended_state_pub = nh->create_publisher<mavros_msgs::msg::ExtendedState>("extended_state", 10);
 		batt_pub = nh->create_publisher<BatteryMsg>("battery", 10);
 		statustext_pub = nh->create_publisher<mavros_msgs::msg::StatusText>("statustext/recv", 10);
-		statustext_sub = nh->create_subscription("statustext/send", 10, std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
-		rate_srv = nh->create_service("set_stream_rate", std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
-		mode_srv = nh->create_service("set_mode", std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
-		vehicle_info_get_srv = nh->create_service("vehicle_info_get", std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
-		message_interval_srv = nh->create_service("set_message_interval", std::bind(&SystemStatusPlugin, this, std::placeholders::_1));
+		statustext_sub = nh->create_subscription<mavros_msgs::msg::StatusText>("statustext/send", 10, 
+			std::bind(&SystemStatusPlugin::statustext_cb, this, std::placeholders::_1));
+		rate_srv = nh->create_service<mavros_msgs::srv::StreamRate>("set_stream_rate", 
+			std::bind(&SystemStatusPlugin::set_rate_cb, this, std::placeholders::_1, std::placeholders::_2));
+		mode_srv = nh->create_service<mavros_msgs::srv::SetMode>("set_mode", 
+			std::bind(&SystemStatusPlugin::set_mode_cb, this, std::placeholders::_1, std::placeholders::_2));
+		vehicle_info_get_srv = nh->create_service<mavros_msgs::srv::VehicleInfoGet>("vehicle_info_get", 
+			std::bind(&SystemStatusPlugin::vehicle_info_get_cb, this, std::placeholders::_1, std::placeholders::_2));
+		message_interval_srv = nh->create_service<mavros_msgs::srv::MessageInterval>("set_message_interval", 
+			std::bind(&SystemStatusPlugin::set_message_interval_cb, this, std::placeholders::_1, std::placeholders::_2));
 
 		// init state topic
 		publish_disconnection();
@@ -510,25 +520,26 @@ public:
 
 private:
 	rclcpp::Node::SharedPtr nh;
+	rclcpp::Clock::SharedPtr clock;
 
 	HeartbeatStatus hb_diag;
 	MemInfo mem_diag;
 	HwStatus hwst_diag;
 	SystemStatusDiag sys_diag;
 	BatteryStatusDiag batt_diag;
-	rclcpp::Timer timeout_timer;
-	rclcpp::Timer heartbeat_timer;
-	rclcpp::Timer autopilot_version_timer;
+	rclcpp::TimerBase::SharedPtr timeout_timer;
+	rclcpp::TimerBase::SharedPtr heartbeat_timer;
+	rclcpp::TimerBase::SharedPtr autopilot_version_timer;
 
-	rclcpp::Publisher<>::SharedPtr state_pub;
-	rclcpp::Publisher<>::SharedPtr extended_state_pub;
-	rclcpp::Publisher<>::SharedPtr batt_pub;
-	rclcpp::Publisher<>::SharedPtr statustext_pub;
-	rclcpp::Subscription<>::SharedPtr statustext_sub;
-	rclcpp::Service<>::SharedPtr rate_srv;
-	rclcpp::Service<>::SharedPtr mode_srv;
-	rclcpp::Service<>::SharedPtr vehicle_info_get_srv;
-	rclcpp::Service<>::SharedPtr message_interval_srv;
+	rclcpp::Publisher<mavros_msgs::msg::State>::SharedPtr state_pub;
+	rclcpp::Publisher<mavros_msgs::msg::ExtendedState>::SharedPtr extended_state_pub;
+	rclcpp::Publisher<BatteryMsg>::SharedPtr batt_pub;
+	rclcpp::Publisher<mavros_msgs::msg::StatusText>::SharedPtr statustext_pub;
+	rclcpp::Subscription<mavros_msgs::msg::StatusText>::SharedPtr statustext_sub;
+	rclcpp::Service<mavros_msgs::srv::StreamRate>::SharedPtr rate_srv;
+	rclcpp::Service<mavros_msgs::srv::SetMode>::SharedPtr mode_srv;
+	rclcpp::Service<mavros_msgs::srv::VehicleInfoGet>::SharedPtr vehicle_info_get_srv;
+	rclcpp::Service<mavros_msgs::srv::MessageInterval>::SharedPtr message_interval_srv;
 
 	MAV_TYPE conn_heartbeat_mav_type;
 	static constexpr int RETRIES_COUNT = 6;
@@ -563,7 +574,7 @@ private:
 			ret = res.first;
 		}
 
-		ROS_ASSERT(ret != vehicles.end());
+		BOOST_ASSERT(ret != vehicles.end());
 		return ret;
 	}
 
@@ -593,21 +604,21 @@ private:
 		case enum_value(MAV_SEVERITY::ALERT):
 		case enum_value(MAV_SEVERITY::CRITICAL):
 		case enum_value(MAV_SEVERITY::ERROR):
-			ROS_ERROR_STREAM_NAMED("fcu", "FCU: " << text);
+			RCLCPP_ERROR_STREAM(nh->get_logger(), "FCU: " << text);
 			break;
 		case enum_value(MAV_SEVERITY::WARNING):
 		case enum_value(MAV_SEVERITY::NOTICE):
-			ROS_WARN_STREAM_NAMED("fcu", "FCU: " << text);
+			RCLCPP_WARN_STREAM(nh->get_logger(), "FCU: " << text);
 			break;
 		case enum_value(MAV_SEVERITY::INFO):
-			RCUTILS_LOG_INFO_NAMED("fcu", "FCU: " << text);
+			RCLCPP_INFO_STREAM(nh->get_logger(), "FCU: " << text);
 			break;
 		case enum_value(MAV_SEVERITY::DEBUG):
-			ROS_DEBUG_STREAM_NAMED("fcu", "FCU: " << text);
+			RCLCPP_DEBUG_STREAM(nh->get_logger(), "FCU: " << text);
 			break;
 		// [[[end]]] (checksum: 315aa363b5ecb4dda66cc8e1e3d3aa48)
 		default:
-			ROS_WARN_STREAM_NAMED("fcu", "FCU: UNK(" << +severity << "): " << text);
+			RCLCPP_WARN_STREAM(nh->get_logger(), "FCU: UNK(" << +severity << "): " << text);
 			break;
 		};
 	}
@@ -671,15 +682,15 @@ private:
 	}
 
 	void publish_disconnection() {
-		auto state_msg = std::make_shared<mavros_msgs::msg::State>();
-		state_msg->header.stamp = rclcpp::Time::now();
-		state_msg->connected = false;
-		state_msg->armed = false;
-		state_msg->guided = false;
-		state_msg->mode = "";
-		state_msg->system_status = enum_value(MAV_STATE::UNINIT);
+		auto state_msg = state_pub->borrow_loaned_message();
+		state_msg.get().header.stamp = clock->now();
+		state_msg.get().connected = false;
+		state_msg.get().armed = false;
+		state_msg.get().guided = false;
+		state_msg.get().mode = "";
+		state_msg.get().system_status = enum_value(MAV_STATE::UNINIT);
 
-		state_pub.publish(state_msg);
+		state_pub->publish(std::move(state_msg));
 	}
 
 	/* -*- message handlers -*- */
@@ -692,7 +703,7 @@ private:
 		auto it = find_or_create_vehicle_info(msg->sysid, msg->compid);
 
 		auto vehicle_mode = m_uas->str_mode_v10(hb.base_mode, hb.custom_mode);
-		auto stamp = rclcpp::Time::now();
+		auto stamp = clock->now();
 
 		// Update vehicle data
 		it->second.header.stamp = stamp;
@@ -719,31 +730,30 @@ private:
 		// update context && setup connection timeout
 		m_uas->update_heartbeat(hb.type, hb.autopilot, hb.base_mode);
 		m_uas->update_connection_status(true);
-		timeout_timer.stop();
-		timeout_timer.start();
+		timeout_timer->reset();
 
 		// build state message after updating uas
-		auto state_msg = std::make_shared<mavros_msgs::msg::State>();
-		state_msg->header.stamp = stamp;
-		state_msg->connected = true;
-		state_msg->armed = !!(hb.base_mode & enum_value(MAV_MODE_FLAG::SAFETY_ARMED));
-		state_msg->guided = !!(hb.base_mode & enum_value(MAV_MODE_FLAG::GUIDED_ENABLED));
-		state_msg->manual_input = !!(hb.base_mode & enum_value(MAV_MODE_FLAG::MANUAL_INPUT_ENABLED));
-		state_msg->mode = vehicle_mode;
-		state_msg->system_status = hb.system_status;
+		auto state_msg = state_pub->borrow_loaned_message();
+		state_msg.get().header.stamp = stamp;
+		state_msg.get().connected = true;
+		state_msg.get().armed = !!(hb.base_mode & enum_value(MAV_MODE_FLAG::SAFETY_ARMED));
+		state_msg.get().guided = !!(hb.base_mode & enum_value(MAV_MODE_FLAG::GUIDED_ENABLED));
+		state_msg.get().manual_input = !!(hb.base_mode & enum_value(MAV_MODE_FLAG::MANUAL_INPUT_ENABLED));
+		state_msg.get().mode = vehicle_mode;
+		state_msg.get().system_status = hb.system_status;
 
-		state_pub.publish(state_msg);
-		hb_diag.tick(hb.type, hb.autopilot, state_msg->mode, hb.system_status);
+		state_pub->publish(std::move(state_msg));
+		hb_diag.tick(hb.type, hb.autopilot, vehicle_mode, hb.system_status);
 	}
 
 	void handle_extended_sys_state(const mavlink::mavlink_message_t *msg, mavlink::common::msg::EXTENDED_SYS_STATE &state)
 	{
-		auto state_msg = std::make_shared<mavros_msgs::msg::ExtendedState>();
-		state_msg->header.stamp = rclcpp::Time::now();
-		state_msg->vtol_state = state.vtol_state;
-		state_msg->landed_state = state.landed_state;
+		auto state_msg = extended_state_pub->borrow_loaned_message();
+		state_msg.get().header.stamp = clock->now();
+		state_msg.get().vtol_state = state.vtol_state;
+		state_msg.get().landed_state = state.landed_state;
 
-		extended_state_pub.publish(state_msg);
+		extended_state_pub->publish(std::move(state_msg));
 	}
 
 	void handle_sys_status(const mavlink::mavlink_message_t *msg, mavlink::common::msg::SYS_STATUS &stat)
@@ -759,30 +769,30 @@ private:
 		if (has_battery_status)
 			return;
 
-		auto batt_msg = std::make_shared<BatteryMsg>();
-		batt_msg->header.stamp = rclcpp::Time::now();
+		auto batt_msg = batt_pub->borrow_loaned_message();
+		batt_msg.get().header.stamp = clock->now();
 
 #ifdef HAVE_SENSOR_MSGS_BATTERYSTATE_MSG
-		batt_msg->voltage = volt;
-		batt_msg->current = -curr;
-		batt_msg->charge = NAN;
-		batt_msg->capacity = NAN;
-		batt_msg->design_capacity = NAN;
-		batt_msg->percentage = rem;
-		batt_msg->power_supply_status = BatteryMsg::POWER_SUPPLY_STATUS_DISCHARGING;
-		batt_msg->power_supply_health = BatteryMsg::POWER_SUPPLY_HEALTH_UNKNOWN;
-		batt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
-		batt_msg->present = true;
-		batt_msg->cell_voltage.clear();	// not necessary. Cell count and Voltage unknown.
-		batt_msg->location = "";
-		batt_msg->serial_number = "";
+		batt_msg.get().voltage = volt;
+		batt_msg.get().current = -curr;
+		batt_msg.get().charge = NAN;
+		batt_msg.get().capacity = NAN;
+		batt_msg.get().design_capacity = NAN;
+		batt_msg.get().percentage = rem;
+		batt_msg.get().power_supply_status = BatteryMsg::POWER_SUPPLY_STATUS_DISCHARGING;
+		batt_msg.get().power_supply_health = BatteryMsg::POWER_SUPPLY_HEALTH_UNKNOWN;
+		batt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+		batt_msg.get().present = true;
+		batt_msg.get().cell_voltage.clear();	// not necessary. Cell count and Voltage unknown.
+		batt_msg.get().location = "";
+		batt_msg.get().serial_number = "";
 #else	// mavros_msgs::msg::BatteryStatus
-		batt_msg->voltage = volt;
-		batt_msg->current = curr;
-		batt_msg->remaining = rem;
+		batt_msg.get().voltage = volt;
+		batt_msg.get().current = curr;
+		batt_msg.get().remaining = rem;
 #endif
 
-		batt_pub.publish(batt_msg);
+		batt_pub->publish(std::move(batt_msg));
 	}
 
 	void handle_statustext(const mavlink::mavlink_message_t *msg, mavlink::common::msg::STATUSTEXT &textm)
@@ -790,11 +800,11 @@ private:
 		auto text = mavlink::to_string(textm.text);
 		process_statustext_normal(textm.severity, text);
 
-		auto st_msg = std::make_shared<mavros_msgs::msg::StatusText>();
-		st_msg->header.stamp = rclcpp::Time::now();
-		st_msg->severity = textm.severity;
-		st_msg->text = text;
-		statustext_pub.publish(st_msg);
+		auto st_msg = statustext_pub->borrow_loaned_message();
+		st_msg.get().header.stamp = clock->now();
+		st_msg.get().severity = textm.severity;
+		st_msg.get().text = text;
+		statustext_pub->publish(std::move(st_msg));
 	}
 
 	void handle_meminfo(const mavlink::mavlink_message_t *msg, mavlink::ardupilotmega::msg::MEMINFO &mem)
@@ -811,7 +821,7 @@ private:
 	{
 		// we want to store only FCU caps
 		if (m_uas->is_my_target(msg->sysid, msg->compid)) {
-			autopilot_version_timer.stop();
+			autopilot_version_timer->cancel();
 			m_uas->update_capabilities(true, apv.capabilities);
 		}
 
@@ -825,7 +835,7 @@ private:
 		auto it = find_or_create_vehicle_info(msg->sysid, msg->compid);
 
 		// Update vehicle data
-		it->second.header.stamp = rclcpp::Time::now();
+		it->second.header.stamp = clock->now();
 		it->second.available_info |= mavros_msgs::msg::VehicleInfo::HAVE_INFO_AUTOPILOT_VERSION;
 		it->second.capabilities = apv.capabilities;
 		it->second.flight_sw_version = apv.flight_sw_version;
@@ -845,17 +855,17 @@ private:
 
 		has_battery_status = true;
 
-		auto batt_msg = std::make_shared<BatteryMsg>();
-		batt_msg->header.stamp = rclcpp::Time::now();
+		auto batt_msg = batt_pub->borrow_loaned_message();
+		batt_msg.get().header.stamp = rclcpp::Time::now();
 
-		batt_msg->voltage = battery_voltage;
-		batt_msg->current = -(bs.current_battery / 100.0f);	// 10 mA
-		batt_msg->charge = NAN;
-		batt_msg->capacity = NAN;
-		batt_msg->design_capacity = NAN;
-		batt_msg->percentage = bs.battery_remaining / 100.0f;
-		batt_msg->power_supply_status = BatteryMsg::POWER_SUPPLY_STATUS_DISCHARGING;
-		batt_msg->power_supply_health = BatteryMsg::POWER_SUPPLY_HEALTH_UNKNOWN;
+		batt_msg.get().voltage = battery_voltage;
+		batt_msg.get().current = -(bs.current_battery / 100.0f);	// 10 mA
+		batt_msg.get().charge = NAN;
+		batt_msg.get().capacity = NAN;
+		batt_msg.get().design_capacity = NAN;
+		batt_msg.get().percentage = bs.battery_remaining / 100.0f;
+		batt_msg.get().power_supply_status = BatteryMsg::POWER_SUPPLY_STATUS_DISCHARGING;
+		batt_msg.get().power_supply_health = BatteryMsg::POWER_SUPPLY_HEALTH_UNKNOWN;
 
 		switch (bs.type) {
 		// [[[cog:
@@ -868,41 +878,41 @@ private:
 		//     cog.outl("case enum_value(BT::%s):" % f)
 		//     if f == 'UNKNOWN':
 		//         cog.outl("default:")
-		//     cog.outl("\tbatt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_%s;" % f)
+		//     cog.outl("\tbatt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_%s;" % f)
 		//     cog.outl("\tbreak;")
 		// ]]]
 		case enum_value(BT::LIPO):
-			batt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_LIPO;
+			batt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_LIPO;
 			break;
 		case enum_value(BT::LIFE):
-			batt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_LIFE;
+			batt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_LIFE;
 			break;
 		case enum_value(BT::LION):
-			batt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_LION;
+			batt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_LION;
 			break;
 		case enum_value(BT::NIMH):
-			batt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_NIMH;
+			batt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_NIMH;
 			break;
 		case enum_value(BT::UNKNOWN):
 		default:
-			batt_msg->power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+			batt_msg.get().power_supply_technology = BatteryMsg::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
 			break;
 		// [[[end]]] (checksum: 2bf14a81b3027f14ba1dd9b4c086a41d)
 		}
 
-		batt_msg->present = true;
+		batt_msg.get().present = true;
 
-		batt_msg->cell_voltage.clear();
-		batt_msg->cell_voltage.reserve(bs.voltages.size());
+		batt_msg.get().cell_voltage.clear();
+		batt_msg.get().cell_voltage.reserve(bs.voltages.size());
 		for (auto v : bs.voltages) {
 			if (v == UINT16_MAX)
 				break;
 
-			batt_msg->cell_voltage.push_back(v / 1000.0f);	// 1 mV
+			batt_msg.get().cell_voltage.push_back(v / 1000.0f);	// 1 mV
 		}
 
-		batt_msg->location = utils::format("id%u", bs.id);
-		batt_msg->serial_number = "";
+		batt_msg.get().location = utils::format("id%u", bs.id);
+		batt_msg.get().serial_number = "";
 
 		batt_pub.publish(batt_msg);
 #endif
@@ -910,12 +920,12 @@ private:
 
 	/* -*- timer callbacks -*- */
 
-	void timeout_cb(const rclcpp::TimerEvent &event)
+	void timeout_cb()
 	{
 		m_uas->update_connection_status(false);
 	}
 
-	void heartbeat_cb(const rclcpp::TimerEvent &event)
+	void heartbeat_cb()
 	{
 		using mavlink::common::MAV_MODE;
 
@@ -930,7 +940,7 @@ private:
 		UAS_FCU(m_uas)->send_message_ignore_drop(hb);
 	}
 
-	void autopilot_version_cb(const rclcpp::TimerEvent &event)
+	void autopilot_version_cb()
 	{
 		using mavlink::common::MAV_CMD;
 
@@ -939,36 +949,35 @@ private:
 		// Request from all first 3 times, then fallback to unicast
 		bool do_broadcast = version_retries > RETRIES_COUNT / 2;
 
-		try {
-			auto client = nh.serviceClient<mavros_msgs::msg::CommandLong>("cmd/command");
+		using CmdClient = rclcpp::Client<mavros_msgs::srv::CommandLong>;
+		CmdClient::SharedPtr client = nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
 
-			mavros_msgs::msg::CommandLong cmd{};
+		ret = client->wait_for_service(std::chrono::nanoseconds(1000000000));
+		if (!ret) {
+			RCLCPP_ERROR(nh->get_logger(), "VER: command plugin service call failed!");
+		} else {
+			auto cmd = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
 
-			cmd.request.broadcast = do_broadcast;
-			cmd.request.command = enum_value(MAV_CMD::REQUEST_AUTOPILOT_CAPABILITIES);
-			cmd.request.confirmation = false;
-			cmd.request.param1 = 1.0;
+			cmd->broadcast = do_broadcast;
+			cmd->command = enum_value(MAV_CMD::REQUEST_AUTOPILOT_CAPABILITIES);
+			cmd->confirmation = false;
+			cmd->param1 = 1.0;
 
 			RCUTILS_LOG_DEBUG_NAMED("sys", "VER: Sending %s request.",
 					(do_broadcast) ? "broadcast" : "unicast");
-			ret = client.call(cmd);
+			client->async_send_request(cmd);
 		}
-		catch (ros::InvalidNameException &ex) {
-			RCUTILS_LOG_ERROR_NAMED("sys", "VER: %s", ex.what());
-		}
-
-		ROS_ERROR_COND_NAMED(!ret, "sys", "VER: command plugin service call failed!");
 
 		if (version_retries > 0) {
 			version_retries--;
-			ROS_WARN_COND_NAMED(version_retries != RETRIES_COUNT - 1, "sys",
+			RCLCPP_WARN_EXPRESSION(nh->get_logger(), version_retries != RETRIES_COUNT - 1,
 					"VER: %s request timeout, retries left %d",
 					(do_broadcast) ? "broadcast" : "unicast",
 					version_retries);
 		}
 		else {
 			m_uas->update_capabilities(false);
-			autopilot_version_timer.stop();
+			autopilot_version_timer->cancel();
 			RCUTILS_LOG_WARN_NAMED("sys", "VER: your FCU don't support AUTOPILOT_VERSION, "
 					"switched to default capabilities");
 		}
@@ -981,9 +990,9 @@ private:
 		// if connection changes, start delayed version request
 		version_retries = RETRIES_COUNT;
 		if (connected)
-			autopilot_version_timer.start();
+			autopilot_version_timer->reset();
 		else
-			autopilot_version_timer.stop();
+			autopilot_version_timer->cancel();
 
 		// add/remove APM diag tasks
 		if (connected && disable_diag && m_uas->is_ardupilotmega()) {
@@ -1011,7 +1020,7 @@ private:
 		statustext.severity = req->severity;
 
 		// Limit the length of the string by null-terminating at the 50-th character
-		ROS_WARN_COND_NAMED(req->text.length() >= statustext.text.size(), "sys",
+		RCLCPP_WARN_EXPRESSION(nh->get_logger(), req->text.length() >= statustext.text.size(),
 				"Status text too long: truncating...");
 		mavlink::set_string_z(statustext.text, req->text);
 
@@ -1020,32 +1029,32 @@ private:
 
 	/* -*- ros callbacks -*- */
 
-	bool set_rate_cb(mavros_msgs::msg::StreamRate::Request::SharedPtr req,
-			mavros_msgs::msg::StreamRate::Response::SharedPtr res)
+	bool set_rate_cb(const mavros_msgs::srv::StreamRate::Request::SharedPtr req,
+			mavros_msgs::srv::StreamRate::Response::SharedPtr res)
 	{
 		mavlink::common::msg::REQUEST_DATA_STREAM rq;
 
 		rq.target_system = m_uas->get_tgt_system();
 		rq.target_component = m_uas->get_tgt_component();
-		rq.req_stream_id = req.stream_id;
-		rq.req_message_rate = req.message_rate;
-		rq.start_stop = (req.on_off) ? 1 : 0;
+		rq.req_stream_id = req->stream_id;
+		rq.req_message_rate = req->message_rate;
+		rq.start_stop = (req->on_off) ? 1 : 0;
 
 		UAS_FCU(m_uas)->send_message_ignore_drop(rq);
 		return true;
 	}
 
-	bool set_mode_cb(mavros_msgs::msg::SetMode::Request::SharedPtr req,
-			mavros_msgs::msg::SetMode::Response::SharedPtr res)
+	bool set_mode_cb(const mavros_msgs::srv::SetMode::Request::SharedPtr req,
+			mavros_msgs::srv::SetMode::Response::SharedPtr res)
 	{
 		using mavlink::common::MAV_MODE_FLAG;
 
-		uint8_t base_mode = req.base_mode;
+		uint8_t base_mode = req->base_mode;
 		uint32_t custom_mode = 0;
 
-		if (req.custom_mode != "") {
-			if (!m_uas->cmode_from_str(req.custom_mode, custom_mode)) {
-				res.mode_sent = false;
+		if (req->custom_mode != "") {
+			if (!m_uas->cmode_from_str(req->custom_mode, custom_mode)) {
+				res->mode_sent = false;
 				return true;
 			}
 
@@ -1065,27 +1074,27 @@ private:
 		sm.custom_mode = custom_mode;
 
 		UAS_FCU(m_uas)->send_message_ignore_drop(sm);
-		res.mode_sent = true;
+		res->mode_sent = true;
 		return true;
 	}
 
-	bool vehicle_info_get_cb(mavros_msgs::msg::VehicleInfoGet::Request::SharedPtr req,
-			mavros_msgs::msg::VehicleInfoGet::Response::SharedPtr res)
+	bool vehicle_info_get_cb(const mavros_msgs::srv::VehicleInfoGet::Request::SharedPtr req,
+			mavros_msgs::srv::VehicleInfoGet::Response::SharedPtr res)
 	{
-		if (req.get_all) {
+		if (req->get_all) {
 			// Send all vehicles
 			for (const auto &got : vehicles) {
-				res.vehicles.emplace_back(got.second);
+				res->vehicles.emplace_back(got.second);
 			}
 
-			res.success = true;
-			return res.success;
+			res->success = true;
+			return res->success;
 		}
 
-		uint8_t req_sysid = req.sysid;
-		uint8_t req_compid = req.compid;
+		uint8_t req_sysid = req->sysid;
+		uint8_t req_compid = req->compid;
 
-		if (req.sysid == 0 && req.compid == 0) {
+		if (req->sysid == 0 && req->compid == 0) {
 			// use target
 			req_sysid = m_uas->get_tgt_system();
 			req_compid = m_uas->get_tgt_component();
@@ -1096,52 +1105,54 @@ private:
 
 		if (it == vehicles.end()) {
 			// Vehicle not found
-			res.success = false;
-			return res.success;
+			res->success = false;
+			return res->success;
 		}
 
-		res.vehicles.emplace_back(it->second);
-		res.success = true;
-		return res.success;
+		res->vehicles.emplace_back(it->second);
+		res->success = true;
+		return res->success;
 	}
 
-    bool set_message_interval_cb(mavros_msgs::msg::MessageInterval::Request::SharedPtr req,
-            mavros_msgs::msg::MessageInterval::Response::SharedPtr res)
+    bool set_message_interval_cb(const mavros_msgs::srv::MessageInterval::Request::SharedPtr req,
+            mavros_msgs::srv::MessageInterval::Response::SharedPtr res)
     {
         using mavlink::common::MAV_CMD;
 
         try {
-            auto client = nh.serviceClient<mavros_msgs::msg::CommandLong>("cmd/command");
+            auto client = nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
 
             // calculate interval
             float interval_us;
-            if (req.message_rate < 0) {
+            if (req->message_rate < 0) {
                 interval_us = -1.0f;
-            } else if (req.message_rate == 0) {
+            } else if (req->message_rate == 0) {
                 interval_us = 0.0f;
             } else {
-                interval_us = 1000000.0f / req.message_rate;
+                interval_us = 1000000.0f / req->message_rate;
             }
 
-            mavros_msgs::msg::CommandLong cmd{};
+            auto cmd = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
 
-            cmd.request.broadcast = false;
-            cmd.request.command = enum_value(MAV_CMD::SET_MESSAGE_INTERVAL);
-            cmd.request.confirmation = false;
-            cmd.request.param1 = req.message_id;
-            cmd.request.param2 = interval_us;
+            cmd->broadcast = false;
+            cmd->command = enum_value(MAV_CMD::SET_MESSAGE_INTERVAL);
+            cmd->confirmation = false;
+            cmd->param1 = req->message_id;
+            cmd->param2 = interval_us;
 
             RCUTILS_LOG_DEBUG_NAMED("sys", "SetMessageInterval: Request msgid %u at %f hz",
-                    req.message_id, req.message_rate);
-            res.success = client.call(cmd);
+                    req->message_id, req->message_rate);
+            res->success = client->wait_for_service(std::chrono::milliseconds(200));
+			client->async_send_request(cmd); // TODO: wait for request to finish
         }
-        catch (ros::InvalidNameException &ex) {
+        catch (rclcpp::exceptions::NameValidationError &ex) {
             RCUTILS_LOG_ERROR_NAMED("sys", "SetMessageInterval: %s", ex.what());
         }
 
-        ROS_ERROR_COND_NAMED(!res.success, "sys", "SetMessageInterval: command plugin service call failed!");
+        RCLCPP_ERROR_EXPRESSION(nh->get_logger(), 
+			!res->success, "SetMessageInterval: command plugin service call failed!");
 
-        return res.success;
+        return res->success;
     }
 };
 }	// namespace std_plugins
