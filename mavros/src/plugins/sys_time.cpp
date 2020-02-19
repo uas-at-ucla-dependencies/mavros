@@ -162,8 +162,8 @@ public:
 		double conn_timesync_d;
 		std::string ts_mode_str;
 
-		std::chrono::duration<double> conn_system_time;
-		std::chrono::duration<double> conn_timesync;
+		std::chrono::duration<double> conn_system_time(0.0);
+		std::chrono::duration<double> conn_timesync(0.0);
 
 		if (nh->get_parameter("conn/system_time_rate", conn_system_time_d) && conn_system_time_d != 0.0) {
 			conn_system_time = std::chrono::duration<double>(1.0 / conn_system_time_d);
@@ -225,13 +225,13 @@ public:
 		timesync_status_pub = nh->create_publisher<mavros_msgs::msg::TimesyncStatus>("timesync_status", 10);
 
 		// timer for sending system time messages
-		if (conn_system_time != std::chrono::duration<double>()) {
+		if (conn_system_time.count() != 0.0) {
 			sys_time_timer = nh->create_wall_timer(conn_system_time,
 						std::bind(&SystemTimePlugin::sys_time_cb, this));
 		}
 
 		// timer for sending timesync messages
-		if (conn_timesync != std::chrono::duration<double>() 
+		if (conn_timesync.count() != 0.0 
 			&& !(ts_mode == TSM::NONE || ts_mode == TSM::PASSTHROUGH)) {
 			// enable timesync diag only if that feature enabled
 			UAS_DIAG(m_uas).add(dt_diag);

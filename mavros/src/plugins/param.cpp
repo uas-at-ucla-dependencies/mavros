@@ -116,7 +116,7 @@ public:
 		// [[[end]]] (checksum: 5950e4ee032d4aa198b953f56909e129)
 
 		default:
-			RCUTILS_LOG_WARN_NAMED("param", "PM: Unsupported param %.16s (%u/%u) type: %u",
+			RCUTILS_LOG_WARN_NAMED("mavros.param", "PM: Unsupported param %.16s (%u/%u) type: %u",
 					pmsg.param_id.data(), pmsg.param_index, pmsg.param_count, pmsg.param_type);
 			param_value = ParameterValue(0);
 		};
@@ -170,7 +170,7 @@ public:
 		// [[[end]]] (checksum: c30ee34dd84213471690612ab49f1f73)
 
 		default:
-			RCUTILS_LOG_WARN_NAMED("param", "PM: Unsupported param %.16s (%u/%u) type: %u",
+			RCUTILS_LOG_WARN_NAMED("mavros.param", "PM: Unsupported param %.16s (%u/%u) type: %u",
 					pmsg.param_id.data(), pmsg.param_index, pmsg.param_count, pmsg.param_type);
 			param_value = ParameterValue(0);
 		}
@@ -217,7 +217,7 @@ public:
 		// [[[end]]] (checksum: c414a3950fba234cbbe694a2576ae022)
 
 		default:
-			RCUTILS_LOG_WARN_NAMED("param", "PR: Unsupported XmlRpcValue type: %u", param_value.get_type());
+			RCUTILS_LOG_WARN_NAMED("mavros.param", "PR: Unsupported XmlRpcValue type: %u", param_value.get_type());
 		}
 
 		ret.param_value = uv.param_float;
@@ -254,7 +254,7 @@ public:
 		// [[[end]]] (checksum: 5b10c0e1f2e916f1c31313eaa5cc83e0)
 
 		default:
-			RCUTILS_LOG_WARN_NAMED("param", "PR: Unsupported XmlRpcValue type: %u", param_value.get_type());
+			RCUTILS_LOG_WARN_NAMED("mavros.param", "PR: Unsupported XmlRpcValue type: %u", param_value.get_type());
 		}
 
 		return ret;
@@ -355,6 +355,8 @@ public:
 class ParamPlugin : public plugin::PluginBase {
 public:
 	ParamPlugin() : PluginBase(),
+		param_nh(rclcpp::Node::make_shared("param", "mavros")),
+		logger(param_nh->get_logger()),
 		param_count(-1),
 		param_state(PR::IDLE),
 		is_timedout(false),
@@ -368,7 +370,6 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
-		param_nh = uas_.mavros_node->create_sub_node("param");
 
 		pull_srv = param_nh->create_service<mavros_msgs::srv::ParamPull>("pull", std::bind(&ParamPlugin::pull_cb, this, std::placeholders::_1, std::placeholders::_2));
 		push_srv = param_nh->create_service<mavros_msgs::srv::ParamPush>("push", std::bind(&ParamPlugin::push_cb, this, std::placeholders::_1, std::placeholders::_2));
@@ -397,6 +398,7 @@ private:
 
 	std::recursive_mutex mutex;
 	rclcpp::Node::SharedPtr param_nh;
+	rclcpp::Logger logger;
 
 	rclcpp::Service<mavros_msgs::srv::ParamPull>::SharedPtr pull_srv;
 	rclcpp::Service<mavros_msgs::srv::ParamPush>::SharedPtr push_srv;
@@ -463,13 +465,12 @@ private:
 
 			param_value_pub->publish(p.to_msg());
 
-			RCUTILS_LOG_WARN_EXPRESSION_NAMED(
+			RCLCPP_WARN_STREAM_EXPRESSION(logger,
 					((p.param_index != pmsg.param_index &&
 					  pmsg.param_index != UINT16_MAX) ||
 					 p.param_count != pmsg.param_count),
-					"param",
-					"PR: Param %s"" different index: %z/%z", p.to_string().c_str(), pmsg.param_index, pmsg.param_count);
-			RCUTILS_LOG_DEBUG_NAMED("param", "PR: Update param %s", p.to_string().c_str());
+					"PR: Param " << p.to_string() << " different index: " << pmsg.param_index << "/" << pmsg.param_count);
+			RCLCPP_DEBUG_STREAM(logger, "PR: Update param " << p.to_string());
 		}
 		else {
 			// insert new element
@@ -487,7 +488,7 @@ private:
 
 			param_value_pub->publish(p.to_msg());
 
-			RCUTILS_LOG_DEBUG_NAMED("param", "PR: New param %s", p.to_string().c_str());
+			RCLCPP_DEBUG_STREAM(logger, "PR: New param " << p.to_string());
 		}
 
 		if (param_state == PR::RXLIST || param_state == PR::RXPARAM || param_state == PR::RXPARAM_TIMEDOUT) {
@@ -499,13 +500,13 @@ private:
 
 				parameters_missing_idx.clear();
 				if (param_count != UINT16_MAX) {
-					RCUTILS_LOG_DEBUG_NAMED("param", "PR: waiting %zu parameters", param_count);
+					RCLCPP_DEBUG(logger, "PR: waiting %zu parameters", param_count);
 					// declare that all parameters are missing
 					for (uint16_t idx = 0; idx < param_count; idx++)
 						parameters_missing_idx.push_back(idx);
 				}
 				else
-					RCUTILS_LOG_WARN_NAMED("param", "PR: FCU does not know index for first element! "
+					RCLCPP_WARN(logger, "PR: FCU does not know index for first element! "
 							"Param list may be truncated.");
 			}
 
@@ -518,11 +519,11 @@ private:
 
 			// in receiving mode we use param_rx_retries for LIST and PARAM
 			if (it_is_first_requested) {
-				RCUTILS_LOG_DEBUG_NAMED("param", "PR: got a value of a requested param idx=%u, "
+				RCLCPP_DEBUG(logger, "PR: got a value of a requested param idx=%u, "
 						"resetting retries count", pmsg.param_index);
 				param_rx_retries = RETRIES_COUNT;
 			} else if (param_state == PR::RXPARAM_TIMEDOUT) {
-				RCUTILS_LOG_INFO_NAMED("param", "PR: got an unsolicited param value idx=%u, "
+				RCLCPP_INFO(logger, "PR: got an unsolicited param value idx=%u, "
 						"not resetting retries count %zu", pmsg.param_index, param_rx_retries);
 			}
 
@@ -531,15 +532,15 @@ private:
 			/* index starting from 0, receivig done */
 			if (parameters_missing_idx.empty()) {
 				ssize_t missed = param_count - parameters.size();
-				RCUTILS_LOG_INFO_EXPRESSION_NAMED(missed == 0, "param", "PR: parameters list received");
-				RCUTILS_LOG_WARN_EXPRESSION_NAMED(missed > 0, "param",
+				RCLCPP_INFO_EXPRESSION(logger, missed == 0, "param", "PR: parameters list received");
+				RCLCPP_WARN_EXPRESSION(logger, missed > 0, "param",
 						"PR: parameters list received, but %zd parametars are missed",
 						missed);
 				go_idle();
 				list_receiving.notify_all();
 			} else if (param_state == PR::RXPARAM_TIMEDOUT) {
 				uint16_t first_miss_idx = parameters_missing_idx.front();
-				RCUTILS_LOG_DEBUG_NAMED("param", "PR: requesting next timed out parameter idx=%u", first_miss_idx);
+				RCLCPP_DEBUG(logger, "PR: requesting next timed out parameter idx=%u", first_miss_idx);
 				param_request_read("", first_miss_idx);
 			}
 		}
@@ -549,7 +550,7 @@ private:
 
 	void param_request_list()
 	{
-		RCUTILS_LOG_DEBUG_NAMED("param", "PR:m: request list");
+		RCLCPP_DEBUG(logger, "PR:m: request list");
 
 		mavlink::common::msg::PARAM_REQUEST_LIST rql{};
 		m_uas->msg_set_target(rql);
@@ -561,7 +562,7 @@ private:
 	{
 		ROS_ASSERT(index >= -1);
 
-		RCUTILS_LOG_DEBUG_NAMED("param", "PR:m: request '%s', idx %d", id.c_str(), index);
+		RCLCPP_DEBUG(logger, "PR:m: request '%s', idx %d", id.c_str(), index);
 
 		mavlink::common::msg::PARAM_REQUEST_READ rqr{};
 		m_uas->msg_set_target(rqr);
@@ -576,7 +577,7 @@ private:
 
 	void param_set(Parameter &param)
 	{
-		RCUTILS_LOG_DEBUG_EXPRESSION_NAMED("param", "PR:m: set param %s", param.to_string().c_str());
+		RCLCPP_DEBUG_STREAM(logger, "PR:m: set param " << param.to_string());
 
 		// GCC 4.8 can't type out lambda return
 		auto ps = ([this, &param]() -> mavlink::common::msg::PARAM_SET {
@@ -614,11 +615,11 @@ private:
 		lock_guard lock(mutex);
 		if (param_state != PR::IDLE) {
 			// try later
-			RCUTILS_LOG_DEBUG_NAMED("param", "PR: busy, reshedule pull");
+			RCLCPP_DEBUG(logger, "PR: busy, reshedule pull");
 			shedule_pull();
 		}
 
-		RCUTILS_LOG_DEBUG_NAMED("param", "PR: start sheduled pull");
+		RCLCPP_DEBUG(logger, "PR: start sheduled pull");
 		param_state = PR::RXLIST;
 		param_rx_retries = RETRIES_COUNT;
 		parameters.clear();
@@ -632,14 +633,14 @@ private:
 		lock_guard lock(mutex);
 		if (param_state == PR::RXLIST && param_rx_retries > 0) {
 			param_rx_retries--;
-			RCUTILS_LOG_WARN_NAMED("param", "PR: request list timeout, retries left %zu", param_rx_retries);
+			RCLCPP_WARN(logger, "PR: request list timeout, retries left %zu", param_rx_retries);
 
 			restart_timeout_timer();
 			param_request_list();
 		}
 		else if (param_state == PR::RXPARAM || param_state == PR::RXPARAM_TIMEDOUT) {
 			if (parameters_missing_idx.empty()) {
-				RCUTILS_LOG_WARN_NAMED("param", "PR: missing list is clear, but we in RXPARAM state, "
+				RCLCPP_WARN(logger, "PR: missing list is clear, but we in RXPARAM state, "
 						"maybe last rerequest fails. Params missed: %zd",
 						param_count - parameters.size());
 				go_idle();
@@ -651,20 +652,20 @@ private:
 			uint16_t first_miss_idx = parameters_missing_idx.front();
 			if (param_rx_retries > 0) {
 				param_rx_retries--;
-				RCUTILS_LOG_WARN_NAMED("param", "PR: request param #%u timeout, retries left %zu, and %zu params still missing",
+				RCLCPP_WARN(logger, "PR: request param #%u timeout, retries left %zu, and %zu params still missing",
 						first_miss_idx, param_rx_retries, parameters_missing_idx.size());
 				restart_timeout_timer();
 				param_request_read("", first_miss_idx);
 			}
 			else {
-				RCUTILS_LOG_ERROR_NAMED("param", "PR: request param #%u completely missing.", first_miss_idx);
+				RCLCPP_ERROR(logger, "PR: request param #%u completely missing.", first_miss_idx);
 				parameters_missing_idx.pop_front();
 				restart_timeout_timer();
 				if (!parameters_missing_idx.empty()) {
 					param_rx_retries = RETRIES_COUNT;
 					first_miss_idx = parameters_missing_idx.front();
 
-					RCUTILS_LOG_WARN_NAMED("param", "PR: %zu params still missing, trying to request next: #%u",
+					RCLCPP_WARN(logger, "PR: %zu params still missing, trying to request next: #%u",
 							parameters_missing_idx.size(), first_miss_idx);
 					param_request_read("", first_miss_idx);
 				}
@@ -673,28 +674,28 @@ private:
 		else if (param_state == PR::TXPARAM) {
 			auto it = set_parameters.begin();
 			if (it == set_parameters.end()) {
-				RCUTILS_LOG_DEBUG_NAMED("param", "PR: send list empty, but state TXPARAM");
+				RCLCPP_DEBUG(logger, "PR: send list empty, but state TXPARAM");
 				go_idle();
 				return;
 			}
 
 			if (it->second->retries_remaining > 0) {
 				it->second->retries_remaining--;
-				RCUTILS_LOG_WARN_NAMED("param", "PR: Resend param set for %s, retries left %zu",
+				RCLCPP_WARN(logger, "PR: Resend param set for %s, retries left %zu",
 						it->second->param.param_id.c_str(),
 						it->second->retries_remaining);
 				restart_timeout_timer();
 				param_set(it->second->param);
 			}
 			else {
-				RCUTILS_LOG_ERROR_NAMED("param", "PR: Param set for %s timed out.",
+				RCLCPP_ERROR(logger, "PR: Param set for %s timed out.",
 						it->second->param.param_id.c_str());
 				it->second->is_timedout = true;
 				it->second->ack.notify_all();
 			}
 		}
 		else {
-			RCUTILS_LOG_DEBUG_NAMED("param", "PR: timeout in IDLE!");
+			RCLCPP_DEBUG(logger, "PR: timeout in IDLE!");
 		}
 	}
 
@@ -756,7 +757,7 @@ private:
 	{
 		if (m_uas->is_px4() && p.param_id == "_HASH_CHECK") {
 			auto v = p.param_value;	// const XmlRpcValue can't cast
-			RCUTILS_LOG_INFO_NAMED("param", "PR: PX4 parameter _HASH_CHECK ignored: 0x%8x", v.get<int32_t>());
+			RCLCPP_INFO(logger, "PR: PX4 parameter _HASH_CHECK ignored: 0x%8x", v.get<int32_t>());
 			return false;
 		}
 
@@ -778,9 +779,9 @@ private:
 		if ((param_state == PR::IDLE && parameters.empty())
 				|| req->force_pull) {
 			if (!req->force_pull)
-				RCUTILS_LOG_DEBUG_NAMED("param", "PR: start pull");
+				RCLCPP_DEBUG(logger, "PR: start pull");
 			else
-				RCUTILS_LOG_INFO_NAMED("param", "PR: start force pull");
+				RCLCPP_INFO(logger, "PR: start force pull");
 
 			param_state = PR::RXLIST;
 			param_rx_retries = RETRIES_COUNT;
@@ -828,7 +829,7 @@ private:
 		int tx_count = 0;
 		for (auto &param : param_dict) {
 			if (Parameter::check_exclude_param_id(param.first)) {
-				RCUTILS_LOG_DEBUG_EXPRESSION_NAMED("param", "PR: Exclude param: %s", param.first.c_str());
+				RCLCPP_DEBUG_STREAM(logger, "PR: Exclude param: " << param.first);
 				continue;
 			}
 
@@ -849,7 +850,7 @@ private:
 					tx_count++;
 			}
 			else {
-				RCUTILS_LOG_WARN_EXPRESSION_NAMED("param", "PR: Unknown rosparam: %s", param.first.c_str());
+				RCLCPP_WARN_STREAM(logger, "PR: Unknown rosparam: " << param.first);
 			}
 		}
 
@@ -869,7 +870,7 @@ private:
 		unique_lock lock(mutex);
 
 		if (param_state == PR::RXLIST || param_state == PR::RXPARAM || param_state == PR::RXPARAM_TIMEDOUT) {
-			RCUTILS_LOG_ERROR_NAMED("param", "PR: receiving not complete");
+			RCLCPP_ERROR(logger, "PR: receiving not complete");
 			return false;
 		}
 
@@ -896,7 +897,7 @@ private:
 			rosparam_set_allowed(param_it->second);
 		}
 		else {
-			RCUTILS_LOG_ERROR_EXPRESSION_NAMED("param", "PR: Unknown parameter to set: %s", req->param_id.c_str());
+			RCLCPP_ERROR_STREAM(logger, "PR: Unknown parameter to set: " << req->param_id);
 			res->success = false;
 		}
 
@@ -920,7 +921,7 @@ private:
 			res->value.real = param_it->second.to_real();
 		}
 		else {
-			RCUTILS_LOG_ERROR_EXPRESSION_NAMED("param", "PR: Unknown parameter to get: %s", req->param_id.c_str());
+			RCLCPP_ERROR_STREAM(logger, "PR: Unknown parameter to get: " << req->param_id);
 			res->success = false;
 		}
 

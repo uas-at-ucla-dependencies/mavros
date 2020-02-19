@@ -71,7 +71,7 @@ inline bool convert(const mavros_msgs::msg::Mavlink &rmsg, mavlink_message_t &mm
 	mmsg.msgid = rmsg.msgid;
 	mmsg.checksum = rmsg.checksum;
 	// [[[end]]] (checksum: 2ef42a7798f261bfd367bf4157b11ec0)
-	std::copy(rmsg.payload64.begin(), rmsg.payload64.end(), mmsg.payload64);
+	std::copy(rmsg.payload64.begin(), rmsg.payload64.end(), _MAV_PAYLOAD_NON_CONST(&mmsg));
 	std::copy(rmsg.signature.begin(), rmsg.signature.end(), mmsg.signature);
 
 	return true;
@@ -87,7 +87,6 @@ inline bool convert(const mavros_msgs::msg::Mavlink &rmsg, mavlink_message_t &mm
  */
 inline bool convert(const mavlink_message_t &mmsg, mavros_msgs::msg::Mavlink &rmsg, uint8_t framing_status = mavros_msgs::msg::Mavlink::FRAMING_OK)
 {
-	const size_t payload64_len = (mmsg.len + 7) / 8;
 
 	rmsg.framing_status = framing_status;
 
@@ -105,7 +104,8 @@ inline bool convert(const mavlink_message_t &mmsg, mavros_msgs::msg::Mavlink &rm
 	rmsg.msgid = mmsg.msgid;
 	rmsg.checksum = mmsg.checksum;
 	// [[[end]]] (checksum: 4f0a50d2fcd7eb8823aea3e0806cd698)
-	rmsg.payload64 = std::move(mavros_msgs::msg::Mavlink::_payload64_type(mmsg.payload64, mmsg.payload64 + payload64_len));
+	rmsg.payload64 = std::move(mavros_msgs::msg::Mavlink::_payload64_type(
+		_MAV_PAYLOAD(&mmsg), _MAV_PAYLOAD(&mmsg) + mmsg.len));
 
 	// copy signature block only if message is signed
 	if (mmsg.incompat_flags & MAVLINK_IFLAG_SIGNED)

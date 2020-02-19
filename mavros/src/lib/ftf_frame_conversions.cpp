@@ -85,6 +85,7 @@ Eigen::Quaterniond transform_orientation(const Eigen::Quaterniond &q, const Stat
 	case StaticTF::BASELINK_TO_AIRCRAFT:
 		return q * AIRCRAFT_BASELINK_Q;
 	}
+	return {};
 }
 
 
@@ -99,6 +100,7 @@ Eigen::Vector3d transform_static_frame(const Eigen::Vector3d &vec, const StaticT
 	case StaticTF::BASELINK_TO_AIRCRAFT:
 		return AIRCRAFT_BASELINK_AFFINE * vec;
 	}
+	return {};
 }
 
 Covariance3d transform_static_frame(const Covariance3d &cov, const StaticTF transform)
@@ -119,6 +121,7 @@ Covariance3d transform_static_frame(const Covariance3d &cov, const StaticTF tran
 		cov_out = cov_in * AIRCRAFT_BASELINK_Q;
 		return cov_out_;
 	}
+	return {};
 }
 
 Covariance6d transform_static_frame(const Covariance6d &cov, const StaticTF transform)
@@ -150,6 +153,7 @@ Covariance6d transform_static_frame(const Covariance6d &cov, const StaticTF tran
 		cov_out = R * cov_in * R.transpose();
 		return cov_out_;
 	}
+	return {};
 }
 
 Covariance9d transform_static_frame(const Covariance9d &cov, const StaticTF transform)
@@ -183,6 +187,7 @@ Covariance9d transform_static_frame(const Covariance9d &cov, const StaticTF tran
 		cov_out = R * cov_in * R.transpose();
 		return cov_out_;
 	}
+	return {};
 }
 
 Eigen::Vector3d transform_static_frame(const Eigen::Vector3d &vec, const Eigen::Vector3d &map_origin, const StaticTF transform)
@@ -224,6 +229,7 @@ Eigen::Vector3d transform_static_frame(const Eigen::Vector3d &vec, const Eigen::
 		R.transposeInPlace();
 		return R * vec;
 	}
+	return {};
 }
 
 Eigen::Vector3d transform_frame(const Eigen::Vector3d &vec, const Eigen::Quaterniond &q)

@@ -437,7 +437,7 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		std::chrono::duration<double> conn_heartbeat_period;
+		std::chrono::duration<double> conn_heartbeat_period(0.0);
 
 		double conn_timeout_d;
 		double conn_heartbeat_d;
@@ -474,7 +474,7 @@ public:
 		timeout_timer->cancel();
 		//timeout_timer.start();
 
-		if (conn_heartbeat_period != std::chrono::duration<double>()) {
+		if (conn_heartbeat_period.count() != 0.0) {
 			heartbeat_timer = nh->create_wall_timer(conn_heartbeat_period,
 					std::bind(&SystemStatusPlugin::heartbeat_cb, this));
 			//heartbeat_timer.start();
