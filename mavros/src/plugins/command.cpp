@@ -63,23 +63,23 @@ public:
 	{
 		PluginBase::initialize(uas_);
 		
-		cmd_nh = uas_.mavros_node->create_sub_node("cmd");
+		cmd_nh = rclcpp::Node::make_shared("cmd", "mavros");
 
 		double command_ack_timeout;
 
-		command_ack_timeout = cmd_nh->declare_parameter<double>("command_ack_timeout", ACK_TIMEOUT_DEFAULT);
-		use_comp_id_system_control = cmd_nh->declare_parameter<bool>("use_comp_id_system_control", false);
+		command_ack_timeout = cmd_nh->declare_parameter<double>("~/command_ack_timeout", ACK_TIMEOUT_DEFAULT);
+		use_comp_id_system_control = cmd_nh->declare_parameter<bool>("~/use_comp_id_system_control", false);
 
 		command_ack_timeout_dt = rclcpp::Duration(command_ack_timeout);
 
-		command_long_srv = cmd_nh->create_service<mavros_msgs::srv::CommandLong>("command", std::bind(&CommandPlugin::command_long_cb, this, std::placeholders::_1, std::placeholders::_2));
-		command_int_srv = cmd_nh->create_service<mavros_msgs::srv::CommandInt>("command_int", std::bind(&CommandPlugin::command_int_cb, this, std::placeholders::_1, std::placeholders::_2));
-		arming_srv = cmd_nh->create_service<mavros_msgs::srv::CommandBool>("arming", std::bind(&CommandPlugin::arming_cb, this, std::placeholders::_1, std::placeholders::_2));
-		set_home_srv = cmd_nh->create_service<mavros_msgs::srv::CommandHome>("set_home", std::bind(&CommandPlugin::set_home_cb, this, std::placeholders::_1, std::placeholders::_2));
-		takeoff_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("takeoff", std::bind(&CommandPlugin::takeoff_cb, this, std::placeholders::_1, std::placeholders::_2));
-		land_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("land", std::bind(&CommandPlugin::land_cb, this, std::placeholders::_1, std::placeholders::_2));
-		trigger_control_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerControl>("trigger_control", std::bind(&CommandPlugin::trigger_control_cb, this, std::placeholders::_1, std::placeholders::_2));
-		trigger_interval_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerInterval>("trigger_interval", std::bind(&CommandPlugin::trigger_interval_cb, this, std::placeholders::_1, std::placeholders::_2));
+		command_long_srv = cmd_nh->create_service<mavros_msgs::srv::CommandLong>("~/command", std::bind(&CommandPlugin::command_long_cb, this, std::placeholders::_1, std::placeholders::_2));
+		command_int_srv = cmd_nh->create_service<mavros_msgs::srv::CommandInt>("~/command_int", std::bind(&CommandPlugin::command_int_cb, this, std::placeholders::_1, std::placeholders::_2));
+		arming_srv = cmd_nh->create_service<mavros_msgs::srv::CommandBool>("~/arming", std::bind(&CommandPlugin::arming_cb, this, std::placeholders::_1, std::placeholders::_2));
+		set_home_srv = cmd_nh->create_service<mavros_msgs::srv::CommandHome>("~/set_home", std::bind(&CommandPlugin::set_home_cb, this, std::placeholders::_1, std::placeholders::_2));
+		takeoff_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("~/takeoff", std::bind(&CommandPlugin::takeoff_cb, this, std::placeholders::_1, std::placeholders::_2));
+		land_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTOL>("~/land", std::bind(&CommandPlugin::land_cb, this, std::placeholders::_1, std::placeholders::_2));
+		trigger_control_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerControl>("~/trigger_control", std::bind(&CommandPlugin::trigger_control_cb, this, std::placeholders::_1, std::placeholders::_2));
+		trigger_interval_srv = cmd_nh->create_service<mavros_msgs::srv::CommandTriggerInterval>("~/trigger_interval", std::bind(&CommandPlugin::trigger_interval_cb, this, std::placeholders::_1, std::placeholders::_2));
 	}
 
 	Subscriptions get_subscriptions()
@@ -126,7 +126,7 @@ private:
 			}
 		}
 
-		RCUTILS_LOG_WARN_THROTTLE_NAMED(,10, "cmd", "CMD: Unexpected command %u, result %u",
+		RCUTILS_LOG_WARN_NAMED("cmd", "CMD: Unexpected command %u, result %u",
 			ack.command, ack.result);
 	}
 

@@ -32,6 +32,7 @@ class TimeSyncStatus : public diagnostic_updater::DiagnosticTask
 public:
 	TimeSyncStatus(const std::string &name, size_t win_size) :
 		diagnostic_updater::DiagnosticTask(name),
+		clock_(RCL_ROS_TIME),
 		window_size_(win_size),
 		min_freq_(0.01),
 		max_freq_(10),
@@ -50,7 +51,7 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mutex);
 
-		rclcpp::Time curtime = rclcpp::Time::now();
+		rclcpp::Time curtime = clock_.now();
 		count_ = 0;
 		rtt_sum = 0;
 
@@ -84,10 +85,10 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mutex);
 
-		rclcpp::Time curtime = rclcpp::Time::now();
+		rclcpp::Time curtime = clock_.now();
 		int curseq = count_;
 		int events = curseq - seq_nums_[hist_indx_];
-		double window = (curtime - times_[hist_indx_]).toSec();
+		double window = (curtime - times_[hist_indx_]).seconds();
 		double freq = events / window;
 		seq_nums_[hist_indx_] = curseq;
 		times_[hist_indx_] = curtime;
@@ -115,6 +116,7 @@ public:
 	}
 
 private:
+	rclcpp::Clock clock_;
 	int count_;
 	std::vector<rclcpp::Time> times_;
 	std::vector<int> seq_nums_;
@@ -137,7 +139,6 @@ private:
 class SystemTimePlugin : public plugin::PluginBase {
 public:
 	SystemTimePlugin() : PluginBase(),
-		nh("~"),
 		dt_diag("Time Sync", 10),
 		time_offset(0.0),
 		time_skew(0.0),
@@ -154,23 +155,26 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
+		nh = rclcpp::Node::make_shared("time", "mavros");
+		clock = nh->get_clock();
+
 		double conn_system_time_d;
 		double conn_timesync_d;
 		std::string ts_mode_str;
 
-		ros::Duration conn_system_time;
-		ros::Duration conn_timesync;
+		std::chrono::duration<double> conn_system_time;
+		std::chrono::duration<double> conn_timesync;
 
-		if (nh.getParam("conn/system_time_rate", conn_system_time_d) && conn_system_time_d != 0.0) {
-			conn_system_time = ros::Duration(ros::Rate(conn_system_time_d));
+		if (nh->get_parameter("conn/system_time_rate", conn_system_time_d) && conn_system_time_d != 0.0) {
+			conn_system_time = std::chrono::duration<double>(1.0 / conn_system_time_d);
 		}
 
-		if (nh.getParam("conn/timesync_rate", conn_timesync_d) && conn_timesync_d != 0.0) {
-			conn_timesync = ros::Duration(ros::Rate(conn_timesync_d));
+		if (nh->get_parameter("conn/timesync_rate", conn_timesync_d) && conn_timesync_d != 0.0) {
+			conn_timesync = std::chrono::duration<double>(1.0 / conn_timesync_d);
 		}
 
-		nh.param<std::string>("time/time_ref_source", time_ref_source, "fcu");
-		nh.param<std::string>("time/timesync_mode", ts_mode_str, "MAVLINK");
+		nh->get_parameter_or<std::string>("time/time_ref_source", time_ref_source, "fcu");
+		nh->get_parameter_or<std::string>("time/timesync_mode", ts_mode_str, "MAVLINK");
 
 		// Filter gains
 		//
@@ -182,10 +186,10 @@ public:
 		// tighter estimation of the skew (derivative), but will negatively affect how fast the
 		// filter reacts to clock skewing (e.g cause by temperature changes to the oscillator).
 		// Larger values will cause large-amplitude oscillations.
-		nh.param("time/timesync_alpha_initial", filter_alpha_initial, 0.05f);
-		nh.param("time/timesync_beta_initial", filter_beta_initial, 0.05f);
-		nh.param("time/timesync_alpha_final", filter_alpha_final, 0.003f);
-		nh.param("time/timesync_beta_final", filter_beta_final, 0.003f);
+		nh->get_parameter_or("time/timesync_alpha_initial", filter_alpha_initial, 0.05f);
+		nh->get_parameter_or("time/timesync_beta_initial", filter_beta_initial, 0.05f);
+		nh->get_parameter_or("time/timesync_alpha_final", filter_alpha_final, 0.003f);
+		nh->get_parameter_or("time/timesync_beta_final", filter_beta_final, 0.003f);
 		filter_alpha = filter_alpha_initial;
 		filter_beta = filter_beta_initial;
 
@@ -195,7 +199,7 @@ public:
 		// exhanged timesync packets is less than convergence_window. A lower value will
 		// allow the timesync to converge faster, but with potentially less accurate initial
 		// offset and skew estimates.
-		nh.param("time/convergence_window", convergence_window, 500);
+		nh->get_parameter_or("time/convergence_window", convergence_window, 500);
 
 		// Outlier rejection and filter reset
 		//
@@ -206,35 +210,34 @@ public:
 		// estimate are not used to update the filter. More than max_consecutive_high_deviation number
 		// of such events in a row will reset the filter. This usually happens only due to a time jump
 		// on the remote system.
-		nh.param("time/max_rtt_sample", max_rtt_sample, 10);				// in ms
-		nh.param("time/max_deviation_sample", max_deviation_sample, 100);	// in ms
-		nh.param("time/max_consecutive_high_rtt", max_cons_high_rtt, 5);
-		nh.param("time/max_consecutive_high_deviation", max_cons_high_deviation, 5);
+		nh->get_parameter_or("time/max_rtt_sample", max_rtt_sample, 10);				// in ms
+		nh->get_parameter_or("time/max_deviation_sample", max_deviation_sample, 100);	// in ms
+		nh->get_parameter_or("time/max_consecutive_high_rtt", max_cons_high_rtt, 5);
+		nh->get_parameter_or("time/max_consecutive_high_deviation", max_cons_high_deviation, 5);
 
 		// Set timesync mode
 		auto ts_mode = utils::timesync_mode_from_str(ts_mode_str);
 		m_uas->set_timesync_mode(ts_mode);
-		RCUTILS_LOG_INFO_NAMED("time", "TM: Timesync mode: " << utils::to_string(ts_mode));
+		RCLCPP_INFO_STREAM(nh->get_logger(), "TM: Timesync mode: " << utils::to_string(ts_mode));
 
 		time_ref_pub = nh->create_publisher<sensor_msgs::msg::TimeReference>("time_reference", 10);
 
 		timesync_status_pub = nh->create_publisher<mavros_msgs::msg::TimesyncStatus>("timesync_status", 10);
 
 		// timer for sending system time messages
-		if (!conn_system_time.isZero()) {
-			sys_time_timer = nh.createTimer(conn_system_time,
-						std::bind(&SystemTimePlugin, this, std::placeholders::_1));
-			sys_time_timer.start();
+		if (conn_system_time != std::chrono::duration<double>()) {
+			sys_time_timer = nh->create_wall_timer(conn_system_time,
+						std::bind(&SystemTimePlugin::sys_time_cb, this));
 		}
 
 		// timer for sending timesync messages
-		if (!conn_timesync.isZero() && !(ts_mode == TSM::NONE || ts_mode == TSM::PASSTHROUGH)) {
+		if (conn_timesync != std::chrono::duration<double>() 
+			&& !(ts_mode == TSM::NONE || ts_mode == TSM::PASSTHROUGH)) {
 			// enable timesync diag only if that feature enabled
 			UAS_DIAG(m_uas).add(dt_diag);
 
-			timesync_timer = nh.createTimer(conn_timesync,
-						std::bind(&SystemTimePlugin, this, std::placeholders::_1));
-			timesync_timer.start();
+			timesync_timer = nh->create_wall_timer(conn_timesync,
+						std::bind(&SystemTimePlugin::timesync_cb, this));
 		}
 	}
 
@@ -246,13 +249,18 @@ public:
 		};
 	}
 
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return nh;
+	}
+
 private:
 	rclcpp::Node::SharedPtr nh;
-	rclcpp::Publisher<>::SharedPtr time_ref_pub;
-	rclcpp::Publisher<>::SharedPtr timesync_status_pub;
+	rclcpp::Clock::SharedPtr clock;
+	rclcpp::Publisher<sensor_msgs::msg::TimeReference>::SharedPtr time_ref_pub;
+	rclcpp::Publisher<mavros_msgs::msg::TimesyncStatus>::SharedPtr timesync_status_pub;
 
-	rclcpp::Timer sys_time_timer;
-	rclcpp::Timer timesync_timer;
+	rclcpp::TimerBase::SharedPtr sys_time_timer;
+	rclcpp::TimerBase::SharedPtr timesync_timer;
 
 	TimeSyncStatus dt_diag;
 
@@ -289,16 +297,16 @@ private:
 
 		if (fcu_time_valid) {
 			// continious publish for ntpd
-			auto time_unix = std::make_shared<sensor_msgs::msg::TimeReference>();
+			auto time_unix = std::make_unique<sensor_msgs::msg::TimeReference>();
 			rclcpp::Time time_ref(
 						mtime.time_unix_usec / 1000000,		// t_sec
 						(mtime.time_unix_usec % 1000000) * 1000);	// t_nsec
 
-			time_unix->header.stamp = rclcpp::Time::now();
+			time_unix->header.stamp = clock->now();
 			time_unix->time_ref = time_ref;
 			time_unix->source = time_ref_source;
 
-			time_ref_pub.publish(time_unix);
+			time_ref_pub->publish(std::move(time_unix));
 		}
 		else {
 			RCUTILS_LOG_WARN_THROTTLE_NAMED(,60, "time", "TM: Wrong FCU time.");
@@ -307,7 +315,7 @@ private:
 
 	void handle_timesync(const mavlink::mavlink_message_t *msg, mavlink::common::msg::TIMESYNC &tsync)
 	{
-		uint64_t now_ns = rclcpp::Time::now().toNSec();
+		uint64_t now_ns = clock->now().nanoseconds();
 
 		if (tsync.tc1 == 0) {
 			send_timesync_msg(now_ns, tsync.ts1);
@@ -320,10 +328,10 @@ private:
 		}
 	}
 
-	void sys_time_cb(const rclcpp::TimerEvent &event)
+	void sys_time_cb()
 	{
 		// For filesystem only
-		uint64_t time_unix_usec = rclcpp::Time::now().toNSec() / 1000;	// nano -> micro
+		uint64_t time_unix_usec = clock->now().nanoseconds() / 1000;	// nano -> micro
 
 		mavlink::common::msg::SYSTEM_TIME mtime {};
 		mtime.time_unix_usec = time_unix_usec;
@@ -331,14 +339,14 @@ private:
 		UAS_FCU(m_uas)->send_message_ignore_drop(mtime);
 	}
 
-	void timesync_cb(const rclcpp::TimerEvent &event)
+	void timesync_cb()
 	{
 		auto ts_mode = m_uas->get_timesync_mode();
 		if (ts_mode == TSM::MAVLINK) {
-			send_timesync_msg(0, rclcpp::Time::now().toNSec());
+			send_timesync_msg(0, clock->now().nanoseconds());
 		} else if (ts_mode == TSM::ONBOARD) {
 			// Calculate offset between CLOCK_REALTIME (ros::WallTime) and CLOCK_MONOTONIC
-			uint64_t realtime_now_ns = rclcpp::Time::now().toNSec();
+			uint64_t realtime_now_ns = clock->now().nanoseconds();
 			uint64_t monotonic_now_ns = get_monotonic_now();
 
 			add_timesync_observation(realtime_now_ns - monotonic_now_ns, realtime_now_ns, monotonic_now_ns);
@@ -356,7 +364,7 @@ private:
 
 	void add_timesync_observation(int64_t offset_ns, uint64_t local_time_ns, uint64_t remote_time_ns)
 	{
-		uint64_t now_ns = rclcpp::Time::now().toNSec();
+		uint64_t now_ns = clock->now().nanoseconds();
 
 		// Calculate the round trip time (RTT) it took the timesync packet to bounce back to us from remote system
 		uint64_t rtt_ns = now_ns - local_time_ns;
@@ -423,15 +431,15 @@ private:
 		}
 
 		// Publish timesync status
-		auto timesync_status = std::make_shared<mavros_msgs::msg::TimesyncStatus>();
+		auto timesync_status = std::make_unique<mavros_msgs::msg::TimesyncStatus>();
 
-		timesync_status->header.stamp = rclcpp::Time::now();
+		timesync_status->header.stamp = clock->now();
 		timesync_status->remote_timestamp_ns = remote_time_ns;
 		timesync_status->observed_offset_ns = offset_ns;
 		timesync_status->estimated_offset_ns = time_offset;
 		timesync_status->round_trip_time_ms = float(rtt_ns / 1000000.0);
 
-		timesync_status_pub.publish(timesync_status);
+		timesync_status_pub->publish(std::move(timesync_status));
 
 		// Update diagnostics
 		dt_diag.tick(rtt_ns, remote_time_ns, time_offset);

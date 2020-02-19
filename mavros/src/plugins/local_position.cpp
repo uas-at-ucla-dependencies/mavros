@@ -46,24 +46,24 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
-		lp_nh = uas_.mavros_node->create_sub_node("local_position"),
+		lp_nh = rclcpp::Node::make_shared("local_position", "mavros"),
 
 		// header frame_id.
 		// default to map (world-fixed,ENU as per REP-105).
-		frame_id = lp_nh->declare_parameter<std::string>("frame_id", "map");
+		frame_id = lp_nh->declare_parameter<std::string>("~/frame_id", "map");
 		// Important tf subsection
 		// Report the transform from world to base_link here.
-		tf_send = lp_nh->declare_parameter("tf/send", false);
-		tf_frame_id = lp_nh->declare_parameter<std::string>("tf/frame_id", "map");
-		tf_child_frame_id = lp_nh->declare_parameter<std::string>("tf/child_frame_id", "base_link");
+		tf_send = lp_nh->declare_parameter("~/tf/send", false);
+		tf_frame_id = lp_nh->declare_parameter<std::string>("~/tf/frame_id", "map");
+		tf_child_frame_id = lp_nh->declare_parameter<std::string>("~/tf/child_frame_id", "base_link");
 
-		local_position = lp_nh->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 10);
-		local_position_cov = lp_nh->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("pose_cov", 10);
-		local_velocity_local = lp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("velocity_local", 10);
-		local_velocity_body = lp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("velocity_body", 10);
-		local_velocity_cov = lp_nh->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("velocity_body_cov", 10);
-		local_accel = lp_nh->create_publisher<geometry_msgs::msg::AccelWithCovarianceStamped>("accel", 10);
-		local_odom = lp_nh->create_publisher<nav_msgs::msg::Odometry>("odom",10);
+		local_position = lp_nh->create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 10);
+		local_position_cov = lp_nh->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("~/pose_cov", 10);
+		local_velocity_local = lp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("~/velocity_local", 10);
+		local_velocity_body = lp_nh->create_publisher<geometry_msgs::msg::TwistStamped>("~/velocity_body", 10);
+		local_velocity_cov = lp_nh->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("~/velocity_body_cov", 10);
+		local_accel = lp_nh->create_publisher<geometry_msgs::msg::AccelWithCovarianceStamped>("~/accel", 10);
+		local_odom = lp_nh->create_publisher<nav_msgs::msg::Odometry>("~/odom",10);
 	}
 
 	Subscriptions get_subscriptions() {
@@ -71,6 +71,10 @@ public:
 			       make_handler(&LocalPositionPlugin::handle_local_position_ned),
 			       make_handler(&LocalPositionPlugin::handle_local_position_ned_cov)
 		};
+	}
+	
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return lp_nh;
 	}
 
 private:

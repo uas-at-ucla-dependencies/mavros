@@ -34,7 +34,7 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		nh = uas_.mavros_node;
+		nh = rclcpp::Node::make_shared("actuator_control", "mavros");
 
 		target_actuator_control_pub = nh->create_publisher<mavros_msgs::msg::ActuatorControl>("target_actuator_control", 10);
 		actuator_control_sub = nh->create_subscription<mavros_msgs::msg::ActuatorControl>("actuator_control", 10, std::bind(&ActuatorControlPlugin::actuator_control_cb, this, std::placeholders::_1));
@@ -47,8 +47,12 @@ public:
 		};
 	}
 
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return nh;
+	}
+
 private:
-	rclcpp::Node* nh;
+	rclcpp::Node::SharedPtr nh;
 
 	rclcpp::Publisher<mavros_msgs::msg::ActuatorControl>::SharedPtr target_actuator_control_pub;
 	rclcpp::Subscription<mavros_msgs::msg::ActuatorControl>::SharedPtr actuator_control_sub;

@@ -27,7 +27,7 @@ using mavlink::mavlink_message_t;
 using plugin::PluginBase;
 using utils::enum_value;
 
-rclcpp::Logger MavRos::logger = rclcpp::get_logger("MavRos");
+rclcpp::Logger MavRos::logger = rclcpp::get_logger("mavros");
 
 
 MavRos::MavRos(const rclcpp::NodeOptions& node_options) :

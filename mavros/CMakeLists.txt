@@ -82,7 +82,7 @@ ament_target_dependencies(mavros
 target_link_libraries(mavros atomic)
 
 add_library(mavros_plugins SHARED
-  src/plugins/3dr_radio.cpp
+  # src/plugins/3dr_radio.cpp
   src/plugins/actuator_control.cpp
   src/plugins/altitude.cpp
   src/plugins/command.cpp
@@ -103,7 +103,7 @@ add_library(mavros_plugins SHARED
   # src/plugins/setpoint_raw.cpp
   # src/plugins/setpoint_velocity.cpp
   src/plugins/sys_status.cpp
-  # src/plugins/sys_time.cpp
+  src/plugins/sys_time.cpp
   # src/plugins/vfr_hud.cpp
   src/plugins/waypoint.cpp
   # src/plugins/wind_estimation.cpp

@@ -420,6 +420,7 @@ public:
 	SystemStatusPlugin() : PluginBase(),
 		nh(rclcpp::Node::make_shared("sys", "mavros")),
 		clock(nh->get_clock()),
+		logger(nh->get_logger()),
 		hb_diag("Heartbeat", 10),
 		mem_diag("APM Memory"),
 		hwst_diag("APM Hardware"),
@@ -518,9 +519,14 @@ public:
 		};
 	}
 
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return nh;
+	}
+
 private:
 	rclcpp::Node::SharedPtr nh;
 	rclcpp::Clock::SharedPtr clock;
+	rclcpp::Logger logger;
 
 	HeartbeatStatus hb_diag;
 	MemInfo mem_diag;
@@ -597,28 +603,28 @@ private:
 		//     ):
 		//     for v in l1:
 		//         cog.outl("case enum_value(MAV_SEVERITY::%s):" % v)
-		//     cog.outl("\tROS_%s_STREAM_NAMED(\"fcu\", \"FCU: \" << text);" % l2)
+		//     cog.outl("\tRCLCPP_%s_STREAM(logger, \"FCU: \" << text);" % l2)
 		//     cog.outl("\tbreak;")
 		// ]]]
 		case enum_value(MAV_SEVERITY::EMERGENCY):
 		case enum_value(MAV_SEVERITY::ALERT):
 		case enum_value(MAV_SEVERITY::CRITICAL):
 		case enum_value(MAV_SEVERITY::ERROR):
-			RCLCPP_ERROR_STREAM(nh->get_logger(), "FCU: " << text);
+			RCLCPP_ERROR_STREAM(logger, "FCU: " << text);
 			break;
 		case enum_value(MAV_SEVERITY::WARNING):
 		case enum_value(MAV_SEVERITY::NOTICE):
-			RCLCPP_WARN_STREAM(nh->get_logger(), "FCU: " << text);
+			RCLCPP_WARN_STREAM(logger, "FCU: " << text);
 			break;
 		case enum_value(MAV_SEVERITY::INFO):
-			RCLCPP_INFO_STREAM(nh->get_logger(), "FCU: " << text);
+			RCLCPP_INFO_STREAM(logger, "FCU: " << text);
 			break;
 		case enum_value(MAV_SEVERITY::DEBUG):
-			RCLCPP_DEBUG_STREAM(nh->get_logger(), "FCU: " << text);
+			RCLCPP_DEBUG_STREAM(logger, "FCU: " << text);
 			break;
 		// [[[end]]] (checksum: 315aa363b5ecb4dda66cc8e1e3d3aa48)
 		default:
-			RCLCPP_WARN_STREAM(nh->get_logger(), "FCU: UNK(" << +severity << "): " << text);
+			RCLCPP_WARN_STREAM(logger, "FCU: UNK(" << +severity << "): " << text);
 			break;
 		};
 	}
@@ -638,22 +644,22 @@ private:
 		char prefix[16];
 		std::snprintf(prefix, sizeof(prefix), "VER: %d.%d", sysid, compid);
 
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Capabilities         0x%016llx", prefix, (long long int)apv.capabilities);
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Flight software:     %08x (%s)",
+		RCLCPP_INFO(logger, "%s: Capabilities         0x%016llx", prefix, (long long int)apv.capabilities);
+		RCLCPP_INFO(logger, "%s: Flight software:     %08x (%s)",
 				prefix,
 				apv.flight_sw_version,
 				custom_version_to_hex_string(apv.flight_custom_version).c_str());
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Middleware software: %08x (%s)",
+		RCLCPP_INFO(logger, "%s: Middleware software: %08x (%s)",
 				prefix,
 				apv.middleware_sw_version,
 				custom_version_to_hex_string(apv.middleware_custom_version).c_str());
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: OS software:         %08x (%s)",
+		RCLCPP_INFO(logger, "%s: OS software:         %08x (%s)",
 				prefix,
 				apv.os_sw_version,
 				custom_version_to_hex_string(apv.os_custom_version).c_str());
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Board hardware:      %08x", prefix, apv.board_version);
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: VID/PID:             %04x:%04x", prefix, apv.vendor_id, apv.product_id);
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: UID:                 %016llx", prefix, (long long int)apv.uid);
+		RCLCPP_INFO(logger, "%s: Board hardware:      %08x", prefix, apv.board_version);
+		RCLCPP_INFO(logger, "%s: VID/PID:             %04x:%04x", prefix, apv.vendor_id, apv.product_id);
+		RCLCPP_INFO(logger, "%s: UID:                 %016llx", prefix, (long long int)apv.uid);
 	}
 
 	void process_autopilot_version_apm_quirk(mavlink::common::msg::AUTOPILOT_VERSION &apv, uint8_t sysid, uint8_t compid)
@@ -663,22 +669,22 @@ private:
 
 		// Note based on current APM's impl.
 		// APM uses custom version array[8] as a string
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Capabilities         0x%016llx", prefix, (long long int)apv.capabilities);
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Flight software:     %08x (%*s)",
+		RCLCPP_INFO(logger, "%s: Capabilities         0x%016llx", prefix, (long long int)apv.capabilities);
+		RCLCPP_INFO(logger, "%s: Flight software:     %08x (%*s)",
 				prefix,
 				apv.flight_sw_version,
 				8, apv.flight_custom_version.data());
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Middleware software: %08x (%*s)",
+		RCLCPP_INFO(logger, "%s: Middleware software: %08x (%*s)",
 				prefix,
 				apv.middleware_sw_version,
 				8, apv.middleware_custom_version.data());
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: OS software:         %08x (%*s)",
+		RCLCPP_INFO(logger, "%s: OS software:         %08x (%*s)",
 				prefix,
 				apv.os_sw_version,
 				8, apv.os_custom_version.data());
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: Board hardware:      %08x", prefix, apv.board_version);
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: VID/PID:             %04x:%04x", prefix, apv.vendor_id, apv.product_id);
-		RCUTILS_LOG_INFO_NAMED("sys", "%s: UID:                 %016llx", prefix, (long long int)apv.uid);
+		RCLCPP_INFO(logger, "%s: Board hardware:      %08x", prefix, apv.board_version);
+		RCLCPP_INFO(logger, "%s: VID/PID:             %04x:%04x", prefix, apv.vendor_id, apv.product_id);
+		RCLCPP_INFO(logger, "%s: UID:                 %016llx", prefix, (long long int)apv.uid);
 	}
 
 	void publish_disconnection() {
@@ -723,7 +729,7 @@ private:
 
 		// Continue from here only if vehicle is my target
 		if (!m_uas->is_my_target(msg->sysid, msg->compid)) {
-			RCUTILS_LOG_DEBUG_NAMED("sys", "HEARTBEAT from [%d, %d] dropped.", msg->sysid, msg->compid);
+			RCLCPP_DEBUG(logger, "HEARTBEAT from [%d, %d] dropped.", msg->sysid, msg->compid);
 			return;
 		}
 
@@ -954,7 +960,7 @@ private:
 
 		ret = client->wait_for_service(std::chrono::nanoseconds(1000000000));
 		if (!ret) {
-			RCLCPP_ERROR(nh->get_logger(), "VER: command plugin service call failed!");
+			RCLCPP_ERROR(logger, "VER: command plugin service call failed!");
 		} else {
 			auto cmd = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
 
@@ -963,14 +969,14 @@ private:
 			cmd->confirmation = false;
 			cmd->param1 = 1.0;
 
-			RCUTILS_LOG_DEBUG_NAMED("sys", "VER: Sending %s request.",
+			RCLCPP_DEBUG(logger, "VER: Sending %s request.",
 					(do_broadcast) ? "broadcast" : "unicast");
 			client->async_send_request(cmd);
 		}
 
 		if (version_retries > 0) {
 			version_retries--;
-			RCLCPP_WARN_EXPRESSION(nh->get_logger(), version_retries != RETRIES_COUNT - 1,
+			RCLCPP_WARN_EXPRESSION(logger, version_retries != RETRIES_COUNT - 1,
 					"VER: %s request timeout, retries left %d",
 					(do_broadcast) ? "broadcast" : "unicast",
 					version_retries);
@@ -978,7 +984,7 @@ private:
 		else {
 			m_uas->update_capabilities(false);
 			autopilot_version_timer->cancel();
-			RCUTILS_LOG_WARN_NAMED("sys", "VER: your FCU don't support AUTOPILOT_VERSION, "
+			RCLCPP_WARN(logger, "VER: your FCU don't support AUTOPILOT_VERSION, "
 					"switched to default capabilities");
 		}
 	}
@@ -1020,7 +1026,7 @@ private:
 		statustext.severity = req->severity;
 
 		// Limit the length of the string by null-terminating at the 50-th character
-		RCLCPP_WARN_EXPRESSION(nh->get_logger(), req->text.length() >= statustext.text.size(),
+		RCLCPP_WARN_EXPRESSION(logger, req->text.length() >= statustext.text.size(),
 				"Status text too long: truncating...");
 		mavlink::set_string_z(statustext.text, req->text);
 
@@ -1140,16 +1146,16 @@ private:
             cmd->param1 = req->message_id;
             cmd->param2 = interval_us;
 
-            RCUTILS_LOG_DEBUG_NAMED("sys", "SetMessageInterval: Request msgid %u at %f hz",
+            RCLCPP_DEBUG(logger, "SetMessageInterval: Request msgid %u at %f hz",
                     req->message_id, req->message_rate);
             res->success = client->wait_for_service(std::chrono::milliseconds(200));
 			client->async_send_request(cmd); // TODO: wait for request to finish
         }
         catch (rclcpp::exceptions::NameValidationError &ex) {
-            RCUTILS_LOG_ERROR_NAMED("sys", "SetMessageInterval: %s", ex.what());
+            RCLCPP_ERROR(logger, "SetMessageInterval: %s", ex.what());
         }
 
-        RCLCPP_ERROR_EXPRESSION(nh->get_logger(), 
+        RCLCPP_ERROR_EXPRESSION(logger, 
 			!res->success, "SetMessageInterval: command plugin service call failed!");
 
         return res->success;

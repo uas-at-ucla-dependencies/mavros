@@ -133,7 +133,7 @@ public:
 class WaypointPlugin : public plugin::PluginBase {
 public:
 	WaypointPlugin() : PluginBase(),
-		logger(rclcpp::get_logger("wp")),
+		logger(rclcpp::get_logger("mavros.wp")),
 		wp_state(WP::IDLE),
 		wp_count(0),
 		wp_retries(RETRIES_COUNT),
