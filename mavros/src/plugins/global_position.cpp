@@ -139,9 +139,9 @@ private:
 	double rot_cov;
 	double gps_uere;
 
-	Eigen::Vector3d map_origin {};	//!< geodetic origin of map frame [lla]
-	Eigen::Vector3d ecef_origin {};	//!< geocentric origin of map frame [m]
-	Eigen::Vector3d local_ecef {};	//!< local ECEF coordinates on map frame [m]
+	Eigen::Vector3d map_origin {0, 0, 0};	//!< geodetic origin of map frame [lla]
+	Eigen::Vector3d ecef_origin {0, 0, 0};	//!< geocentric origin of map frame [m]
+	Eigen::Vector3d local_ecef {0, 0, 0};	//!< local ECEF coordinates on map frame [m]
 
 	template<typename MsgT>
 	inline void fill_lla(MsgT &msg, sensor_msgs::msg::NavSatFix::SharedPtr fix)

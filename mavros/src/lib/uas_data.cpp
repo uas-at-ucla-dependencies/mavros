@@ -64,6 +64,10 @@ UAS::UAS(rclcpp::Node *node) :
 	publish_static_transform("fcu", "fcu_frd", Eigen::Affine3d(ftf::quaternion_from_rpy(M_PI, 0, 0)));
 }
 
+UAS::~UAS() {
+	fcu_link->close();
+}
+
 /* -*- heartbeat handlers -*- */
 
 void UAS::update_heartbeat(uint8_t type_, uint8_t autopilot_, uint8_t base_mode_)

@@ -76,7 +76,7 @@ public:
 	using timesync_mode = utils::timesync_mode;
 
 	UAS(rclcpp::Node *node);
-	~UAS() {};
+	~UAS();
 
 	rclcpp::Node *mavros_node;
 

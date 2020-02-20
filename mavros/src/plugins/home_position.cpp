@@ -32,17 +32,19 @@ namespace std_plugins {
 class HomePositionPlugin : public plugin::PluginBase {
 public:
 	HomePositionPlugin() :
+		hp_nh(rclcpp::Node::make_shared("home_position", "mavros")),
 		REQUEST_POLL_TIME_DT(REQUEST_POLL_TIME_MS / 1000.0)
 	{ }
 
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
-		hp_nh = uas_.mavros_node->create_sub_node("home_position"),
 
-		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("home", 2);
-		hp_sub = hp_nh->create_subscription<mavros_msgs::msg::HomePosition>("set", 10, std::bind(&HomePositionPlugin::home_position_cb, this, std::placeholders::_1));
-		update_srv = hp_nh->create_service<std_srvs::srv::Trigger>("req_update", std::bind(&HomePositionPlugin::req_update_cb, this, std::placeholders::_1, std::placeholders::_2));
+		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("~/home", 2);
+		hp_sub = hp_nh->create_subscription<mavros_msgs::msg::HomePosition>("~/set", 10,
+			std::bind(&HomePositionPlugin::home_position_cb, this, std::placeholders::_1));
+		update_srv = hp_nh->create_service<std_srvs::srv::Trigger>("~/req_update",
+			std::bind(&HomePositionPlugin::req_update_cb, this, std::placeholders::_1, std::placeholders::_2));
 
 		poll_timer = hp_nh->create_wall_timer(REQUEST_POLL_TIME_DT, std::bind(&HomePositionPlugin::timeout_cb, this));
 		poll_timer->cancel();
@@ -77,7 +79,7 @@ private:
 		try {
 			auto client = hp_nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
 
-			auto cmd = std::shared_ptr<mavros_msgs::srv::CommandLong::Request>();
+			auto cmd = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
 
 			cmd->command = utils::enum_value(MAV_CMD::GET_HOME_POSITION);
 
