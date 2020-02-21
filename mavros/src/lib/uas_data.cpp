@@ -65,7 +65,9 @@ UAS::UAS(rclcpp::Node *node) :
 }
 
 UAS::~UAS() {
-	fcu_link->close();
+	if (fcu_link) {
+		fcu_link->close();
+	}
 }
 
 /* -*- heartbeat handlers -*- */
