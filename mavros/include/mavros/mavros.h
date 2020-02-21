@@ -39,7 +39,7 @@ public:
 	static rclcpp::Logger logger;
 
 	MavRos(const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions());
-	~MavRos() {};
+	~MavRos();
 
 	void spin();
 

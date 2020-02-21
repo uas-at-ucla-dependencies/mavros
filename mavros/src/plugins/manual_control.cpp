@@ -25,13 +25,13 @@ namespace std_plugins {
  */
 class ManualControlPlugin : public plugin::PluginBase {
 public:
-	ManualControlPlugin() : PluginBase()
+	ManualControlPlugin() : PluginBase(),
+		manual_control_nh(rclcpp::Node::make_shared("manual_control", "mavros"))
 	{ }
 
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
-		manual_control_nh = uas_.mavros_node->create_sub_node("manual_control");
 
 		control_pub = manual_control_nh->create_publisher<mavros_msgs::msg::ManualControl>("control", 10);
 		send_sub = manual_control_nh->create_subscription<mavros_msgs::msg::ManualControl>("send", 1, std::bind(&ManualControlPlugin::send_cb, this, std::placeholders::_1));
@@ -41,6 +41,10 @@ public:
 		return {
 			make_handler(&ManualControlPlugin::handle_manual_control),
 		};
+	}
+
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return manual_control_nh;
 	}
 
 private:

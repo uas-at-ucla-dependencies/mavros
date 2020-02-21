@@ -139,9 +139,9 @@ MAVConnUDP::~MAVConnUDP()
 
 void MAVConnUDP::close()
 {
-	lock_guard lock(mutex);
 	if (!is_open())
 		return;
+	lock_guard lock(mutex);
 
 	socket.cancel();
 	socket.close();

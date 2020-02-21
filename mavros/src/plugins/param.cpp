@@ -371,12 +371,12 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		pull_srv = param_nh->create_service<mavros_msgs::srv::ParamPull>("pull", std::bind(&ParamPlugin::pull_cb, this, std::placeholders::_1, std::placeholders::_2));
-		push_srv = param_nh->create_service<mavros_msgs::srv::ParamPush>("push", std::bind(&ParamPlugin::push_cb, this, std::placeholders::_1, std::placeholders::_2));
-		set_srv = param_nh->create_service<mavros_msgs::srv::ParamSet>("set", std::bind(&ParamPlugin::set_cb, this, std::placeholders::_1, std::placeholders::_2));
-		get_srv = param_nh->create_service<mavros_msgs::srv::ParamGet>("get", std::bind(&ParamPlugin::get_cb, this, std::placeholders::_1, std::placeholders::_2));
+		pull_srv = param_nh->create_service<mavros_msgs::srv::ParamPull>("~/pull", std::bind(&ParamPlugin::pull_cb, this, std::placeholders::_1, std::placeholders::_2));
+		push_srv = param_nh->create_service<mavros_msgs::srv::ParamPush>("~/push", std::bind(&ParamPlugin::push_cb, this, std::placeholders::_1, std::placeholders::_2));
+		set_srv = param_nh->create_service<mavros_msgs::srv::ParamSet>("~/set", std::bind(&ParamPlugin::set_cb, this, std::placeholders::_1, std::placeholders::_2));
+		get_srv = param_nh->create_service<mavros_msgs::srv::ParamGet>("~/get", std::bind(&ParamPlugin::get_cb, this, std::placeholders::_1, std::placeholders::_2));
 
-		param_value_pub = param_nh->create_publisher<mavros_msgs::msg::Param>("param_value", 100);
+		param_value_pub = param_nh->create_publisher<mavros_msgs::msg::Param>("~/param_value", 100);
 
 		shedule_timer = param_nh->create_wall_timer(BOOTUP_TIME_DT, std::bind(&ParamPlugin::shedule_cb, this));
 		shedule_timer->cancel();
@@ -390,6 +390,10 @@ public:
 		return {
 			make_handler(&ParamPlugin::handle_param_value),
 		};
+	}
+
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return param_nh;
 	}
 
 private:

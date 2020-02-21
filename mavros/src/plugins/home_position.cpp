@@ -58,6 +58,10 @@ public:
 		};
 	}
 
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return hp_nh;
+	}
+
 private:
 	rclcpp::Node::SharedPtr hp_nh;
 
@@ -76,20 +80,22 @@ private:
 
 		bool ret = false;
 
-		try {
-			auto client = hp_nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
+		auto client = hp_nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
 
+		if (!client->wait_for_service(std::chrono::milliseconds(100))) {
+			RCUTILS_LOG_ERROR_NAMED("home_position", "HP: cmd service not found");
+		} else {
 			auto cmd = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
 
 			cmd->command = utils::enum_value(MAV_CMD::GET_HOME_POSITION);
 
 			auto future = client->async_send_request(cmd);
-			auto wait_result = rclcpp::spin_until_future_complete(hp_nh, future);
-			ret = wait_result == rclcpp::executor::FutureReturnCode::SUCCESS;
+			// TODO: wait for future to complete
+			// auto wait_result = rclcpp::spin_until_future_complete(hp_nh, future, std::chrono::milliseconds(1000));
+			// ret = wait_result == rclcpp::executor::FutureReturnCode::SUCCESS;
+			ret = true;
 		}
-		catch (rclcpp::exceptions::InvalidServiceNameError &ex) {
-			RCUTILS_LOG_ERROR_NAMED("home_position", "HP: %s", ex.what());
-		}
+
 
 		return ret;
 	}

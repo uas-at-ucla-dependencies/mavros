@@ -136,9 +136,9 @@ MAVConnTCPClient::~MAVConnTCPClient()
 
 void MAVConnTCPClient::close()
 {
-	lock_guard lock(mutex);
 	if (!is_open())
 		return;
+	lock_guard lock(mutex);
 
 	socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send);
 	socket.cancel();

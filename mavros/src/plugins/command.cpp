@@ -89,6 +89,10 @@ public:
 		};
 	}
 
+	rclcpp::Node::SharedPtr get_ros_node() override {
+		return cmd_nh;
+	}
+
 private:
 	using L_CommandTransaction = std::list<CommandTransaction>;
 

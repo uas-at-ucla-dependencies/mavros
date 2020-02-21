@@ -187,6 +187,10 @@ MavRos::MavRos(const rclcpp::NodeOptions& node_options) :
 		tgt_system_id, tgt_component_id);
 }
 
+MavRos::~MavRos() {
+	UAS_FCU(&mav_uas)->port_closed_cb = nullptr;
+}
+
 void MavRos::spin()
 {
 	if (!rclcpp::ok()) {
