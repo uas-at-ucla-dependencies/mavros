@@ -188,7 +188,10 @@ MavRos::MavRos(const rclcpp::NodeOptions& node_options) :
 }
 
 MavRos::~MavRos() {
-	UAS_FCU(&mav_uas)->port_closed_cb = nullptr;
+	auto fcu_link = UAS_FCU(&mav_uas);
+	if (fcu_link) {
+		fcu_link->port_closed_cb = nullptr;
+	}
 }
 
 void MavRos::spin()
