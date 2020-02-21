@@ -418,9 +418,7 @@ class SystemStatusPlugin : public plugin::PluginBase
 {
 public:
 	SystemStatusPlugin() : PluginBase(),
-		nh(rclcpp::Node::make_shared("sys", "mavros")),
-		clock(nh->get_clock()),
-		logger(nh->get_logger()),
+		logger(rclcpp::get_logger("mavros.sys")),
 		hb_diag("Heartbeat", 10),
 		mem_diag("APM Memory"),
 		hwst_diag("APM Hardware"),
@@ -436,6 +434,8 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		nh = uas_.mavros_node;
+		clock = nh->get_clock();
 
 		std::chrono::duration<double> conn_heartbeat_period(0.0);
 
@@ -519,12 +519,8 @@ public:
 		};
 	}
 
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return nh;
-	}
-
 private:
-	rclcpp::Node::SharedPtr nh;
+	rclcpp::Node* nh;
 	rclcpp::Clock::SharedPtr clock;
 	rclcpp::Logger logger;
 

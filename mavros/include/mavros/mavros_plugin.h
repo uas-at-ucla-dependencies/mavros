@@ -68,10 +68,6 @@ public:
 	 */
 	virtual Subscriptions get_subscriptions() = 0;
 
-	virtual rclcpp::Node::SharedPtr get_ros_node() {
-		return nullptr;
-	}
-
 protected:
 	/**
 	 * @brief Plugin constructor

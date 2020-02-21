@@ -155,7 +155,7 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		nh = rclcpp::Node::make_shared("time", "mavros");
+		nh = uas_.mavros_node;
 		clock = nh->get_clock();
 
 		double conn_system_time_d;
@@ -249,12 +249,8 @@ public:
 		};
 	}
 
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return nh;
-	}
-
 private:
-	rclcpp::Node::SharedPtr nh;
+	rclcpp::Node* nh;
 	rclcpp::Clock::SharedPtr clock;
 	rclcpp::Publisher<sensor_msgs::msg::TimeReference>::SharedPtr time_ref_pub;
 	rclcpp::Publisher<mavros_msgs::msg::TimesyncStatus>::SharedPtr timesync_status_pub;

@@ -200,8 +200,7 @@ public:
 class FTPPlugin : public plugin::PluginBase {
 public:
 	FTPPlugin() : PluginBase(),
-		ftp_nh(rclcpp::Node::make_shared("ftp", "mavros")),
-		logger(ftp_nh->get_logger()),
+		logger(rclcpp::get_logger("mavros.ftp")),
 		op_state(OP::IDLE),
 		last_send_seqnr(0),
 		active_session(0),
@@ -220,35 +219,37 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
+		ftp_nh = uas_.mavros_node->create_sub_node("ftp");
+
 		// since C++ generator do not produce field length defs make check explicit.
 		FTPRequest r;
 		if (!(r.payload.size() - sizeof(FTPRequest::PayloadHeader) == r.DATA_MAXSZ)) {
 			RCUTILS_LOG_FATAL("FTP bad data size");
 		}
 
-		list_srv = ftp_nh->create_service<mavros_msgs::srv::FileList>("~/list", 
+		list_srv = ftp_nh->create_service<mavros_msgs::srv::FileList>("list", 
 			std::bind(&FTPPlugin::list_cb, this, std::placeholders::_1, std::placeholders::_2));
-		open_srv = ftp_nh->create_service<mavros_msgs::srv::FileOpen>("~/open", 
+		open_srv = ftp_nh->create_service<mavros_msgs::srv::FileOpen>("open", 
 			std::bind(&FTPPlugin::open_cb, this, std::placeholders::_1, std::placeholders::_2));
-		close_srv = ftp_nh->create_service<mavros_msgs::srv::FileClose>("~/close", 
+		close_srv = ftp_nh->create_service<mavros_msgs::srv::FileClose>("close", 
 			std::bind(&FTPPlugin::close_cb, this, std::placeholders::_1, std::placeholders::_2));
-		read_srv = ftp_nh->create_service<mavros_msgs::srv::FileRead>("~/read", 
+		read_srv = ftp_nh->create_service<mavros_msgs::srv::FileRead>("read", 
 			std::bind(&FTPPlugin::read_cb, this, std::placeholders::_1, std::placeholders::_2));
-		write_srv = ftp_nh->create_service<mavros_msgs::srv::FileWrite>("~/write", 
+		write_srv = ftp_nh->create_service<mavros_msgs::srv::FileWrite>("write", 
 			std::bind(&FTPPlugin::write_cb, this, std::placeholders::_1, std::placeholders::_2));
-		mkdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileMakeDir>("~/mkdir", 
+		mkdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileMakeDir>("mkdir", 
 			std::bind(&FTPPlugin::mkdir_cb, this, std::placeholders::_1, std::placeholders::_2));
-		rmdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemoveDir>("~/rmdir", 
+		rmdir_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemoveDir>("rmdir", 
 			std::bind(&FTPPlugin::rmdir_cb, this, std::placeholders::_1, std::placeholders::_2));
-		remove_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemove>("~/remove", 
+		remove_srv = ftp_nh->create_service<mavros_msgs::srv::FileRemove>("remove", 
 			std::bind(&FTPPlugin::remove_cb, this, std::placeholders::_1, std::placeholders::_2));
-		truncate_srv = ftp_nh->create_service<mavros_msgs::srv::FileTruncate>("~/truncate", 
+		truncate_srv = ftp_nh->create_service<mavros_msgs::srv::FileTruncate>("truncate", 
 			std::bind(&FTPPlugin::truncate_cb, this, std::placeholders::_1, std::placeholders::_2));
-		reset_srv = ftp_nh->create_service<std_srvs::srv::Empty>("~/reset", 
+		reset_srv = ftp_nh->create_service<std_srvs::srv::Empty>("reset", 
 			std::bind(&FTPPlugin::reset_cb, this, std::placeholders::_1, std::placeholders::_2));
-		rename_srv = ftp_nh->create_service<mavros_msgs::srv::FileRename>("~/rename", 
+		rename_srv = ftp_nh->create_service<mavros_msgs::srv::FileRename>("rename", 
 			std::bind(&FTPPlugin::rename_cb, this, std::placeholders::_1, std::placeholders::_2));
-		checksum_srv = ftp_nh->create_service<mavros_msgs::srv::FileChecksum>("~/checksum", 
+		checksum_srv = ftp_nh->create_service<mavros_msgs::srv::FileChecksum>("checksum", 
 			std::bind(&FTPPlugin::checksum_cb, this, std::placeholders::_1, std::placeholders::_2));
 	}
 
@@ -257,10 +258,6 @@ public:
 		return {
 			make_handler(&FTPPlugin::handle_file_transfer_protocol),
 		};
-	}
-
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return ftp_nh;
 	}
 
 private:

@@ -28,7 +28,6 @@ namespace std_plugins {
 class RCIOPlugin : public plugin::PluginBase {
 public:
 	RCIOPlugin() : PluginBase(),
-		rc_nh(rclcpp::Node::make_shared("rc", "mavros")),
 		raw_rc_in(0),
 		raw_rc_out(0),
 		has_rc_channels_msg(false)
@@ -37,6 +36,7 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+		rc_nh = uas_.mavros_node->create_sub_node("rc");
 
 		rc_in_pub = rc_nh->create_publisher<mavros_msgs::msg::RCIn>("in", 10);
 		rc_out_pub = rc_nh->create_publisher<mavros_msgs::msg::RCOut>("out", 10);
@@ -51,10 +51,6 @@ public:
 			       make_handler(&RCIOPlugin::handle_rc_channels),
 			       make_handler(&RCIOPlugin::handle_servo_output_raw),
 		};
-	}
-
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return rc_nh;
 	}
 
 private:

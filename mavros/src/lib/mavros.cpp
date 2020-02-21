@@ -196,15 +196,9 @@ void MavRos::spin()
 	if (!rclcpp::ok()) {
 		return;
 	}
-	rclcpp::executors::MultiThreadedExecutor executor;
+	// rclcpp::executors::MultiThreadedExecutor executor;
+	rclcpp::executors::SingleThreadedExecutor executor;
 	executor.add_node(shared_from_this());
-	for (auto& loaded_plugin : loaded_plugins) {
-		auto node = loaded_plugin->get_ros_node();
-		if (node) {
-			executor.add_node(node);
-		}
-	}
-
 	executor.spin();
 
 	RCLCPP_INFO(logger, "Stopping mavros...");

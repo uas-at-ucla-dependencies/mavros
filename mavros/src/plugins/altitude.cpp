@@ -15,6 +15,7 @@
  */
 
 #include <mavros/mavros_plugin.h>
+#include <mavros/mavros.h>
 
 #include <mavros_msgs/msg/altitude.hpp>
 
@@ -25,8 +26,7 @@ namespace std_plugins {
  */
 class AltitudePlugin : public plugin::PluginBase {
 public:
-	AltitudePlugin() : PluginBase(),
-		nh(rclcpp::Node::make_shared("altitude", "mavros"))
+	AltitudePlugin() : PluginBase()
 	{ }
 
 	/**
@@ -36,7 +36,10 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		frame_id = nh->declare_parameter<std::string>("frame_id", "map");
+		// nh = uas_.mavros_node->create_sub_node("altitude");
+		nh = uas_.mavros_node;
+
+		frame_id = nh->declare_parameter<std::string>("altitude/frame_id", "map");
 		altitude_pub = nh->create_publisher<mavros_msgs::msg::Altitude>("altitude", 10);
 	}
 
@@ -47,12 +50,8 @@ public:
 		};
 	}
 
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return nh;
-	}
-
 private:
-	rclcpp::Node::SharedPtr nh;
+	rclcpp::Node* nh;
 	std::string frame_id;
 
 	rclcpp::Publisher<mavros_msgs::msg::Altitude>::SharedPtr altitude_pub;

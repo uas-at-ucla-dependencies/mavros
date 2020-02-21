@@ -32,7 +32,6 @@ namespace std_plugins {
 class HomePositionPlugin : public plugin::PluginBase {
 public:
 	HomePositionPlugin() :
-		hp_nh(rclcpp::Node::make_shared("home_position", "mavros")),
 		REQUEST_POLL_TIME_DT(REQUEST_POLL_TIME_MS / 1000.0)
 	{ }
 
@@ -40,10 +39,12 @@ public:
 	{
 		PluginBase::initialize(uas_);
 
-		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("~/home", 2);
-		hp_sub = hp_nh->create_subscription<mavros_msgs::msg::HomePosition>("~/set", 10,
+		hp_nh = uas_.mavros_node->create_sub_node("home_position");
+
+		hp_pub = hp_nh->create_publisher<mavros_msgs::msg::HomePosition>("home", 2);
+		hp_sub = hp_nh->create_subscription<mavros_msgs::msg::HomePosition>("set", 10,
 			std::bind(&HomePositionPlugin::home_position_cb, this, std::placeholders::_1));
-		update_srv = hp_nh->create_service<std_srvs::srv::Trigger>("~/req_update",
+		update_srv = hp_nh->create_service<std_srvs::srv::Trigger>("req_update",
 			std::bind(&HomePositionPlugin::req_update_cb, this, std::placeholders::_1, std::placeholders::_2));
 
 		poll_timer = hp_nh->create_wall_timer(REQUEST_POLL_TIME_DT, std::bind(&HomePositionPlugin::timeout_cb, this));
@@ -56,10 +57,6 @@ public:
 		return {
 			       make_handler(&HomePositionPlugin::handle_home_position),
 		};
-	}
-
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return hp_nh;
 	}
 
 private:

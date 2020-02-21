@@ -48,7 +48,6 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	IMUPlugin() : PluginBase(),
-		imu_nh(rclcpp::Node::make_shared("imu", "mavros")),
 		has_hr_imu(false),
 		has_raw_imu(false),
 		has_scaled_imu(false),
@@ -61,6 +60,8 @@ public:
 	void initialize(UAS &uas_)
 	{
 		PluginBase::initialize(uas_);
+
+		imu_nh = uas_.mavros_node->create_sub_node("imu");
 
 		double linear_stdev, angular_stdev, orientation_stdev, mag_stdev;
 
@@ -82,13 +83,13 @@ public:
 		setup_covariance(magnetic_cov, mag_stdev);
 		setup_covariance(unk_orientation_cov, 0.0);
 
-		imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("~/data", 10);
-		magn_pub = imu_nh->create_publisher<sensor_msgs::msg::MagneticField>("~/mag", 10);
-		temp_imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Temperature>("~/temperature_imu", 10);
-		temp_baro_pub = imu_nh->create_publisher<sensor_msgs::msg::Temperature>("~/temperature_baro", 10);
-		static_press_pub = imu_nh->create_publisher<sensor_msgs::msg::FluidPressure>("~/static_pressure", 10);
-		diff_press_pub = imu_nh->create_publisher<sensor_msgs::msg::FluidPressure>("~/diff_pressure", 10);
-		imu_raw_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("~/data_raw", 10);
+		imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data", 10);
+		magn_pub = imu_nh->create_publisher<sensor_msgs::msg::MagneticField>("mag", 10);
+		temp_imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Temperature>("temperature_imu", 10);
+		temp_baro_pub = imu_nh->create_publisher<sensor_msgs::msg::Temperature>("temperature_baro", 10);
+		static_press_pub = imu_nh->create_publisher<sensor_msgs::msg::FluidPressure>("static_pressure", 10);
+		diff_press_pub = imu_nh->create_publisher<sensor_msgs::msg::FluidPressure>("diff_pressure", 10);
+		imu_raw_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data_raw", 10);
 
 		// Reset has_* flags on connection change
 		enable_connection_cb();
@@ -103,10 +104,6 @@ public:
 			       make_handler(&IMUPlugin::handle_scaled_imu),
 			       make_handler(&IMUPlugin::handle_scaled_pressure),
 		};
-	}
-
-	rclcpp::Node::SharedPtr get_ros_node() override {
-		return imu_nh;
 	}
 
 private:
