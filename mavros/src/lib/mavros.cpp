@@ -196,8 +196,7 @@ void MavRos::spin()
 	if (!rclcpp::ok()) {
 		return;
 	}
-	// rclcpp::executors::MultiThreadedExecutor executor;
-	rclcpp::executors::SingleThreadedExecutor executor;
+	rclcpp::executors::MultiThreadedExecutor executor;
 	executor.add_node(shared_from_this());
 	executor.spin();
 

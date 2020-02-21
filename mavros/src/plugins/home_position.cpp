@@ -77,7 +77,7 @@ private:
 
 		bool ret = false;
 
-		auto client = hp_nh->create_client<mavros_msgs::srv::CommandLong>("cmd/command");
+		auto client = hp_nh->create_client<mavros_msgs::srv::CommandLong>("/mavros/cmd/command");
 
 		if (!client->wait_for_service(std::chrono::milliseconds(100))) {
 			RCUTILS_LOG_ERROR_NAMED("home_position", "HP: cmd service not found");

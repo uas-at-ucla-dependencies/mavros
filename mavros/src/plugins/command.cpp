@@ -56,7 +56,7 @@ class CommandPlugin : public plugin::PluginBase {
 public:
 	CommandPlugin() : PluginBase(),
 		use_comp_id_system_control(false),
-		command_ack_timeout_dt(0, 0)
+		command_ack_timeout_dt(0)
 	{ }
 
 	void initialize(UAS &uas_)
@@ -70,7 +70,7 @@ public:
 		command_ack_timeout = cmd_nh->declare_parameter<double>("cmd/command_ack_timeout", ACK_TIMEOUT_DEFAULT);
 		use_comp_id_system_control = cmd_nh->declare_parameter<bool>("cmd/use_comp_id_system_control", false);
 
-		command_ack_timeout_dt = rclcpp::Duration(command_ack_timeout);
+		command_ack_timeout_dt = std::chrono::duration<double>(command_ack_timeout);
 
 		command_long_srv = cmd_nh->create_service<mavros_msgs::srv::CommandLong>("command", 
 			std::bind(&CommandPlugin::command_long_cb, this, std::placeholders::_1, std::placeholders::_2));
@@ -116,7 +116,7 @@ private:
 
 	L_CommandTransaction ack_waiting_list;
 	static constexpr double ACK_TIMEOUT_DEFAULT = 5.0;
-	rclcpp::Duration command_ack_timeout_dt;
+	std::chrono::duration<double> command_ack_timeout_dt;
 
 	/* -*- message handlers -*- */
 
@@ -142,7 +142,7 @@ private:
 
 	bool wait_ack_for(CommandTransaction &tr) {
 		unique_lock lock(tr.cond_mutex);
-		if (tr.ack.wait_for(lock, std::chrono::nanoseconds(command_ack_timeout_dt.nanoseconds())) == std::cv_status::timeout) {
+		if (tr.ack.wait_for(lock, command_ack_timeout_dt) == std::cv_status::timeout) {
 			RCUTILS_LOG_WARN_NAMED("cmd", "CMD: Command %u -- wait ack timeout", tr.expected_command);
 			return false;
 		} else {
