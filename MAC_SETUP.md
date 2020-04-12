@@ -22,7 +22,7 @@ mkdir mavros_ws
 cd mavros_ws
 mkdir src
 
-curl -sL https://gist.githubusercontent.com/RyGuy101/487fd32f00acbfb53c0c7d118a825d0c/raw/0a03017552a838a59b96634ef4a72c8cfee6267f/mavros.repos > mavros.repos # fetch list of repositories needed to build mavros
+curl -sL https://raw.githubusercontent.com/uas-at-ucla-dependencies/mavros/ros2-macos-patch/mavros.repos > mavros.repos # fetch list of repositories needed to build mavros
 
 vcs import src < mavros.repos --recursive # fetch all repositories
 colcon build --packages-up-to mavros # build mavros and all dependent packages using colcon
