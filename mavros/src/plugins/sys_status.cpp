@@ -576,7 +576,11 @@ private:
 			ret = res.first;
 		}
 
+	#if __APPLE__
+		assert(ret != vehicles.end());
+	#else
 		BOOST_ASSERT(ret != vehicles.end());
+	#endif
 		return ret;
 	}
 

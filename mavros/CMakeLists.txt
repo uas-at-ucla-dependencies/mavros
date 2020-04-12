@@ -79,7 +79,11 @@ ament_target_dependencies(mavros
   rclcpp sensor_msgs diagnostic_updater angles
   diagnostic_msgs geographic_msgs nav_msgs pluginlib std_srvs tf2_eigen tf2_ros
 )
-target_link_libraries(mavros atomic)
+if (APPLE)
+  target_link_libraries(mavros)
+else()
+  target_link_libraries(mavros atomic)
+endif()
 
 add_library(mavros_plugins SHARED
   # src/plugins/3dr_radio.cpp
