@@ -1,7 +1,7 @@
-MAVROS
-======
+MAVROS ROS2 Port
+================
 
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mavlink/mavros?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+This is a port by [UAS@UCLA](https://uasatucla.org/) of [MAVROS](https://github.com/mavlink/mavros) to ROS2. This as of 2020-08-10 is functional for most of the core plugins but has not been tested enough. Most of the extra plugins are not ported yet (help would be appreciated though). If you have questions or would like to help, please submit pull requests/issues.
 
 MAVLink extendable communication node for ROS.
 
@@ -67,10 +67,7 @@ We'd like to keep the project bugtracker as free as possible, so please contact 
 CI Statuses
 -----------
 
-  - ROS Kinetic: [![Build Status](http://build.ros.org/buildStatus/icon?job=Kdev__mavros__ubuntu_xenial_amd64)](http://build.ros.org/job/Kdev__mavros__ubuntu_xenial_amd64/)
-  - ROS Lunar: [![Build Status](http://build.ros.org/buildStatus/icon?job=Ldev__mavros__ubuntu_xenial_amd64)](http://build.ros.org/job/Ldev__mavros__ubuntu_xenial_amd64/)
-  - ROS Melodic: [![Build Status](http://build.ros.org/buildStatus/icon?job=Mdev__mavros__ubuntu_bionic_amd64)](http://build.ros.org/job/Mdev__mavros__ubuntu_bionic_amd64/)
-  - Travis master: [![travis status](https://travis-ci.org/mavlink/mavros.svg?branch=master)](https://travis-ci.org/mavlink/mavros)
+TODO
 
 
 [mrrm]: https://github.com/mavlink/mavros/blob/master/mavros/README.md
